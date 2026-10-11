@@ -5,7 +5,7 @@ import {
   HomeOutlined,
   BookOutlined,
   CompassOutlined,
-  UserOutlined,
+  RobotOutlined,
   EditOutlined,
   EllipsisOutlined,
 } from "@ant-design/icons";
@@ -50,8 +50,8 @@ const HeaderMenu: React.FC = () => {
   const menus = [
     { key: "/", label: "首页", icon: <HomeOutlined /> },
     { key: "/copybook", label: "碑帖字库", icon: <BookOutlined /> },
-    { key: "/map", label: "书法地图", icon: <CompassOutlined /> },
-    { key: "/agent", label: "小墨Agent", icon: <UserOutlined /> },
+    { key: "/map", label: "书家列传", icon: <CompassOutlined /> },
+    { key: "/agent", label: "小墨Agent", icon: <RobotOutlined /> },
     { key: "/practise", label: "书法字典", icon: <EditOutlined /> },
     { key: "/more", label: "更多", icon: <EllipsisOutlined /> },
   ];

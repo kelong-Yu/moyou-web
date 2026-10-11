@@ -259,6 +259,11 @@ declare namespace API {
 
     shortDescription?: string;
 
+    /**
+     * 释文（"释文对照"竖排展示用，可能为空）
+     */
+    transcription?: string;
+
     calligrapherId?: number;
 
     calligrapherName?: string;

@@ -123,10 +123,10 @@ export const HeroCalligraphy3DRing: React.FC<HeroCalligraphy3DRingProps> = ({
       {/* 2. 【中层】页面介绍大标题 */}
       <div className="absolute top-44 left-1/2 -translate-x-1/2 z-20 text-center pointer-events-none w-full max-w-2xl px-4">
         <h1 className="text-6xl md:text-6xl font-bold text-white tracking-widest mb-6 font-serif">
-          书法地图
+          书家列传
         </h1>
         <p className="text-xl md:text-xl text-gray-400 tracking-widest mb-6 font-serif">
-          "以地理为经，以书家为纬，一览千年书法文化版图"
+          "以地理为经，以书家为纬，一览千年书法文化"
         </p>
       </div>
 

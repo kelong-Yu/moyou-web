@@ -8,10 +8,6 @@ import {
     EyeOutlined,
     FileImageOutlined,
     SearchOutlined,
-    ReadOutlined,
-    EditOutlined,
-    PartitionOutlined,
-    RobotOutlined,
     RightOutlined
 } from "@ant-design/icons";
 import {
@@ -20,6 +16,7 @@ import {
     getHotCopybooks,
 } from "../../services/copybook/api";
 import MoyouLoading from "../../components/MoyouLoading";
+import PractiseToolbox from "./components/PractiseToolbox";
 
 /**
  * 田字格图标
@@ -99,6 +96,16 @@ const CopybookPractise = () => {
     const handleToolPlaceholder = (toolName: string) => {
         message.info(`${toolName}功能正在开发中，敬请期待`);
     };
+
+    /** 临帖工具箱点击分发：释文对照为真实开关，其余工具占位 */
+    const handleToolClick = (toolName: string) => {
+        if (toolName === "释文对照") {
+            setShowTranscription((prev) => !prev);
+            return;
+        }
+
+        handleToolPlaceholder(toolName);
+    };
     // ==================== 图片加载状态（配合 MoyouLoading） ====================
     /**
      * 已加载完成的原帖预览缩略图地址集合
@@ -122,6 +129,9 @@ const CopybookPractise = () => {
 
     /** 田字格显示开关 */
     const [showTianGrid, setShowTianGrid] = useState(false);
+
+    /** 释文对照展开开关（默认关闭，点击工具箱"释文对照"切换） */
+    const [showTranscription, setShowTranscription] = useState(false);
 
     /** 单字收藏（本地演示状态，后端暂无单字收藏接口） */
     const [localFavorites, setLocalFavorites] = useState<number[]>([]);
@@ -429,7 +439,7 @@ const CopybookPractise = () => {
                                 </div>
                             )}
 
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                                 {/* 书法家姓名 - 碑帖名称 */}
                                 <div className="flex items-center gap-1.5 text-base font-bold">
                                     <button
@@ -451,10 +461,10 @@ const CopybookPractise = () => {
                                     </span>
                                 </div>
 
-                                {/* 简短描述：位于书法家姓名下方 */}
-                                <div className=" flex items-start justify-between  w-max-283">
+                                {/* 简短描述 + 返回上一页：两端对齐，右边缘与下方缩略图条对齐 */}
+                                <div className="flex items-start justify-between gap-4">
                                     {init.shortDescription && (
-                                        <p className="mt-1 text-xs text-[#756B61] line-clamp-1">
+                                        <p className="mt-1 text-xs text-[#756B61] line-clamp-1 min-w-0 flex-1">
                                             {init.shortDescription}
                                         </p>
                                     )}
@@ -528,6 +538,44 @@ const CopybookPractise = () => {
                             <MoyouLoading tip="正在加载原帖预览……" />
                         </div>
                     )}
+                </div>
+
+                {/* ==================== 释文对照（默认收起，工具箱"释文对照"切换） ==================== */}
+                {/* 内容块宽度随释文内容填充并整体居中，最大不超过缩略图条宽度；超出隐藏 */}
+                {/* 淡入淡出：常驻挂载 + max-height/opacity 过渡（条件卸载无法做退出动画） */}
+                <div
+                    className={`overflow-hidden bg-transparent transition-all duration-500 ease-in-out ${
+                        showTranscription
+                            ? "max-h-40 opacity-100 mt-3"
+                            : "max-h-0 opacity-0 mt-0"
+                    }`}
+                >
+                    <div className="h-40 overflow-hidden flex justify-center">
+                        {init?.transcription ? (
+                            <div className="relative h-full max-w-full border-l-2 border-[#964328]">
+                                <p className="h-full w-fit max-w-full pr-5 pl-2 text-lg leading-10 font-serif text-gray-700 [writing-mode:vertical-rl]">
+                                    {init.transcription}
+                                </p>
+
+                                {/* 引首章：长方形朱印"墨友"，盖在开头一两个字上 */}
+                                <span
+                                    aria-hidden="true"
+                                    className="absolute top-1.5 right-0.5 flex flex-col items-center justify-center border-2 border-[#964328] rounded-[3px] px-1 py-1 -rotate-6 opacity-85 mix-blend-multiply select-none pointer-events-none"
+                                >
+                                    <span className="text-[13px] leading-4 font-bold font-serif text-[#964328]">
+                                        墨
+                                    </span>
+                                    <span className="text-[13px] leading-4 font-bold font-serif text-[#964328]">
+                                        友
+                                    </span>
+                                </span>
+                            </div>
+                        ) : (
+                            <p className="h-full w-full flex items-center justify-center text-sm text-gray-400">
+                                暂无释文
+                            </p>
+                        )}
+                    </div>
                 </div>
 
                 {/* ==================== 单字搜索框 ==================== */}
@@ -772,62 +820,11 @@ const CopybookPractise = () => {
                     {/* ---------- 右侧：临帖工具箱 + 碑帖热搜 ---------- */}
 <div className="w-full lg:w-70 shrink-0 self-start flex flex-col gap-3">
 
-    {/* 临帖工具箱 */}
-    <div className="w-full rounded-xl border border-[#964328]/15 bg-white/80 shadow-sm p-3">
-        <h3 className="text-base font-bold text-[#3F332A] mb-3">
-            临帖工具箱
-        </h3>
-
-        <div className="grid grid-cols-4 gap-1">
-            {/* 释文对照 */}
-            <button
-                type="button"
-                onClick={() => handleToolPlaceholder("释文对照")}
-                className="min-w-0 flex flex-col items-center justify-center gap-1 rounded-lg py-2 text-[#756B61] hover:text-[#964328] hover:bg-[#964328]/5 transition-colors cursor-pointer border-0 bg-transparent"
-            >
-                <ReadOutlined className="text-xl" />
-                <span className="text-[11px] whitespace-nowrap">
-                    释文对照
-                </span>
-            </button>
-
-            {/* 在线练习 */}
-            <button
-                type="button"
-                onClick={() => handleToolPlaceholder("在线练习")}
-                className="min-w-0 flex flex-col items-center justify-center gap-1 rounded-lg py-2 text-[#756B61] hover:text-[#964328] hover:bg-[#964328]/5 transition-colors cursor-pointer border-0 bg-transparent"
-            >
-                <EditOutlined className="text-xl" />
-                <span className="text-[11px] whitespace-nowrap">
-                    在线练习
-                </span>
-            </button>
-
-            {/* 笔画拆解 */}
-            <button
-                type="button"
-                onClick={() => handleToolPlaceholder("笔画拆解")}
-                className="min-w-0 flex flex-col items-center justify-center gap-1 rounded-lg py-2 text-[#756B61] hover:text-[#964328] hover:bg-[#964328]/5 transition-colors cursor-pointer border-0 bg-transparent"
-            >
-                <PartitionOutlined className="text-xl" />
-                <span className="text-[11px] whitespace-nowrap">
-                    笔画拆解
-                </span>
-            </button>
-
-            {/* 问问 AI */}
-            <button
-                type="button"
-                onClick={() => handleToolPlaceholder("问问 AI")}
-                className="min-w-0 flex flex-col items-center justify-center gap-1 rounded-lg py-2 text-[#756B61] hover:text-[#964328] hover:bg-[#964328]/5 transition-colors cursor-pointer border-0 bg-transparent"
-            >
-                <RobotOutlined className="text-xl" />
-                <span className="text-[11px] whitespace-nowrap">
-                    问问 AI
-                </span>
-            </button>
-        </div>
-    </div>
+    {/* 临帖工具箱（独立组件） */}
+    <PractiseToolbox
+        onToolClick={handleToolClick}
+        activeTool={showTranscription ? "释文对照" : undefined}
+    />
 
     {/* 碑帖热搜 */}
     <div className="w-full rounded-xl border border-[#964328]/15 bg-white/70 shadow-sm p-4">
