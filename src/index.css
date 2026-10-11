@@ -1,0 +1,8 @@
+@import "tailwindcss";
+/* src/index.css */
+html, body, #root, .ant-layout {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box;
+}

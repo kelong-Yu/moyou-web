@@ -1,0 +1,143 @@
+/* =========================================================
+   墨友统一 Loading 组件样式
+
+   类名统一使用 moyou-loading 前缀，避免影响其他组件。
+   配色：宣纸淡米色背景 + 墨黑主色 + 主题色 #964328 强调。
+   ========================================================= */
+
+.moyou-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+
+    /* 宣纸白/淡米色背景，可通过 CSS 变量在父容器覆盖 */
+    background-color: var(--moyou-loading-bg, #faf6ed);
+
+    width: 100%;
+    height: 100%;
+    padding: 24px;
+
+    color: #756b61;
+    user-select: none;
+}
+
+/* 水墨笔触动画（SVG 圆相笔画） */
+.moyou-loading__ink {
+    width: 56px;
+    height: 56px;
+    transform: rotate(-90deg); /* 起笔位于正上方 */
+}
+
+.moyou-loading__arc {
+    stroke-dasharray: 150.8; /* 周长 2πr，r = 24 */
+    stroke-dashoffset: 150.8;
+    animation: moyou-loading-draw 1.9s cubic-bezier(0.45, 0.05, 0.35, 1) infinite;
+}
+
+/* 中心墨点：如墨滴呼吸 */
+.moyou-loading__dot {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: moyou-loading-ink-pulse 1.9s ease-in-out infinite;
+}
+
+/* 品牌名 */
+.moyou-loading__brand {
+    margin: 0;
+    font-family: "Noto Serif SC", "STKaiti", "KaiTi", "SimSun", serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    text-indent: 6px; /* 抵消最后一个字的字距，保证视觉居中 */
+    color: #3f332a;
+}
+
+/* 加载提示 */
+.moyou-loading__tip {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: #8b8178;
+}
+
+/* 起笔收笔：笔画从无到有写出约 85% 的弧，轻收后再次起笔 */
+@keyframes moyou-loading-draw {
+    0% {
+        stroke-dashoffset: 150.8;
+        opacity: 0;
+    }
+    12% {
+        opacity: 1;
+    }
+    62% {
+        stroke-dashoffset: 22;
+        opacity: 1;
+    }
+    82% {
+        stroke-dashoffset: 22;
+        opacity: 1;
+    }
+    100% {
+        stroke-dashoffset: 22;
+        opacity: 0;
+    }
+}
+
+/* 墨点呼吸 */
+@keyframes moyou-loading-ink-pulse {
+    0%,
+    100% {
+        opacity: 0.25;
+        transform: scale(0.72);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* =========================================================
+   紧凑变体：用于简介栏、热搜栏等空间较小的位置
+   动画与主变体完全一致，仅整体缩小
+   ========================================================= */
+
+.moyou-loading--compact {
+    gap: 3px;
+    padding: 8px 16px;
+}
+
+.moyou-loading--compact .moyou-loading__ink {
+    width: 32px;
+    height: 32px;
+}
+
+.moyou-loading--compact .moyou-loading__brand {
+    font-size: 13px;
+    letter-spacing: 4px;
+    text-indent: 4px;
+}
+
+.moyou-loading--compact .moyou-loading__tip {
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+
+/* =========================================================
+   尊重用户减少动态效果设置：
+   静态展示一段已写出的笔画与墨点，不做循环动画
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    .moyou-loading__arc {
+        animation: none;
+        stroke-dashoffset: 45;
+        opacity: 1;
+    }
+
+    .moyou-loading__dot {
+        animation: none;
+        opacity: 1;
+    }
+}
