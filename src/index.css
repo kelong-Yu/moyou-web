@@ -24,3 +24,62 @@ html, body, #root, .ant-layout {
         transform: none;
     }
 }
+
+/* =========================================================
+   主题分页样式（全站共用：单字临帖 / 浏览历史 等）
+   小号圆形页码 + 赭红实心当前页
+   ========================================================= */
+.theme-pagination.ant-pagination {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px 0;
+}
+
+.theme-pagination .ant-pagination-item,
+.theme-pagination .ant-pagination-prev,
+.theme-pagination .ant-pagination-next {
+    min-width: 28px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50% !important;
+    margin-inline-end: 6px;
+    line-height: 26px;
+}
+
+.theme-pagination .ant-pagination-item a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: 13px;
+}
+
+.theme-pagination .ant-pagination-prev .ant-pagination-item-link,
+.theme-pagination .ant-pagination-next .ant-pagination-item-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+}
+
+/* 当前页：赭红实心圆 + 白字 */
+.theme-pagination .ant-pagination-item-active {
+    background: #964328;
+    border-color: #964328;
+}
+
+.theme-pagination .ant-pagination-item-active a {
+    color: #fff;
+}
+
+/* 快速跳转输入框同步缩小（开启 showQuickJumper 的页面用） */
+.theme-pagination .ant-pagination-options .ant-input {
+    height: 28px;
+}
+
+.theme-pagination .ant-pagination-options .ant-pagination-options-quick-jumper {
+    line-height: 28px;
+}

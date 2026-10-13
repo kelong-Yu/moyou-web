@@ -21,6 +21,7 @@ import {
 import { useSelector } from "react-redux";
 import type { RootState } from "../../stores";
 import MoyouLoading from "../../components/MoyouLoading";
+import { usePageMeta } from "../../hooks/usePageMeta";
 import PractiseToolbox from "./components/PractiseToolbox";
 
 /**
@@ -66,6 +67,14 @@ const CopybookPractise = () => {
     /** 页面初始化数据（碑帖/书法家/原始文件/分页预览，图片均为后端生成的临时地址） */
     const [initLoading, setInitLoading] = useState(true);
     const [init, setInit] = useState<API.WebPractiseInitResponse>();
+
+    // 页面标题 + 浏览历史：取得真实碑帖名称后才设置并上报
+    usePageMeta({
+        title: init?.copybookName ? `${init.copybookName} · 单字临帖` : "",
+        pageType: "practise",
+        targetId: copybookId,
+        ready: !!init?.copybookName,
+    });
 
     /**
      * 返回碑帖详情页
@@ -290,11 +299,6 @@ const CopybookPractise = () => {
     const pagePreviews = useMemo(
         () => init?.pagePreviews || [],
         [init]
-    );
-
-    const totalMiddlePages = Math.max(
-        1,
-        Math.ceil(characterTotal / PAGE_SIZE)
     );
 
     /**
@@ -866,14 +870,13 @@ const CopybookPractise = () => {
                         {characterTotal > 0 && (
                             <div className="shrink-0 pt-3 pb-1 flex justify-center items-center">
                                 <Pagination
+                                    className="theme-pagination"
                                     current={middlePage}
                                     total={characterTotal}
                                     pageSize={PAGE_SIZE}
+                                    showSizeChanger={false}
                                     onChange={handleMiddlePageChange}
                                 />
-                                <span className="ml-4 text-sm text-gray-500">
-                                    第 {middlePage} 页 / 共 {totalMiddlePages} 页
-                                </span>
                             </div>
                         )}
                     </div>

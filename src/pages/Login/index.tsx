@@ -14,10 +14,14 @@ import { useDispatch } from "react-redux";
 import { setUserInfo } from "../../stores/slices/userSlice";
 import logo from "../../assets/moyoulogo.png";
 import bg from "../../assets/lantingxu.jpg";
+import { usePageMeta } from "../../hooks/usePageMeta";
 
 const Login = () => {
   const { message } = App.useApp();
   const navigate = useNavigate();
+
+  // 页面标题（登录页不记录浏览历史）
+  usePageMeta({ title: "登录", record: false });
   const dispatch = useDispatch();
 
   // 真人验证状态

@@ -13,6 +13,7 @@ import CopybookPractise from "../pages/CopybookPractise";
 import UserProfile from "../pages/UserProfile";
 import UserSettingsLayout from "../pages/UserSettings/UserSettingsLayout";
 import ProfileSettings from "../pages/UserSettings/ProfileSettings";
+import VisitHistorySettings from "../pages/UserSettings/VisitHistorySettings";
 import SettingsPlaceholder from "../pages/UserSettings/SettingsPlaceholder";
 import { Navigate } from "react-router-dom";
 
@@ -90,7 +91,7 @@ const router = createBrowserRouter([
             },
             {
                 path: "history",
-                element: <SettingsPlaceholder title="浏览历史" />
+                element: <VisitHistorySettings />
             },
             {
                 path: "api-key",

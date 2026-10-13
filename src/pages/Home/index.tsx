@@ -6,6 +6,7 @@ import HomeCalligraphyMapComponent from "../../components/HomeCalligrapherMapCom
 import homebg from "../../assets/homebg10.jpg";
 import { Select, Radio, Tooltip } from "antd";
 import { getAnnouncementList } from "../../services/announcement/api";
+import { usePageMeta } from "../../hooks/usePageMeta";
 import {
   AppstoreOutlined,
   SlidersOutlined,
@@ -18,6 +19,9 @@ import {
 } from "@ant-design/icons";
 
 const Home: React.FC = () => {
+  // 页面标题 + 浏览历史
+  usePageMeta({ title: "首页", pageType: "home" });
+
   // 控制高级搜索面板展开/收起状态
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   // 搜索关键字

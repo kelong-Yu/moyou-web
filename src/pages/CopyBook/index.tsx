@@ -5,6 +5,7 @@ import CopybookWaterfall from "../../components/CopybookWaterfall";
 import HeroContent from "../../components/HeroContent";
 import { getDynastyList } from "../../services/dynasty/api";
 import { getCopybookPage,getBannerCopybook } from "../../services/copybook/api";
+import { usePageMeta } from "../../hooks/usePageMeta";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -20,6 +21,9 @@ const CopyBook: React.FC = () => {
 
   const {message} = App.useApp();
   const navigate = useNavigate();
+
+  // 页面标题 + 浏览历史
+  usePageMeta({ title: "碑帖字库", pageType: "copybook_list" });
   
   // 在组件顶部定义状态和筛选数据
   const fontStyles = ["全部字体", "篆书", "隶书", "楷书", "行书", "草书"];
@@ -436,6 +440,7 @@ const CopyBook: React.FC = () => {
         </div>
         <div className="flex justify-center items-center mt-10 pb-10">
             <Pagination
+                className="copybook-pagination"
                 current={current}
                 pageSize={pageSize}
                 total={total}

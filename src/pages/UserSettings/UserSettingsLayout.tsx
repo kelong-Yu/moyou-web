@@ -10,6 +10,7 @@ import {
 } from "@ant-design/icons";
 import type { RootState } from "../../stores";
 import UserDropdown from "../../components/UserDropdown";
+import { usePageMeta } from "../../hooks/usePageMeta";
 import moyouLogo from "../../assets/moyouLogo.png";
 
 /** 侧边导航配置（与路由一一对应） */
@@ -51,6 +52,14 @@ const UserSettingsLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
 
+    const secondCrumb = CRUMB_TEXT[location.pathname];
+
+    // 页面标题（设置页不记录浏览历史，避免设置页自身写入历史）
+    usePageMeta({
+        title: secondCrumb || "个人设置",
+        record: false,
+    });
+
     // 未登录：不展示任何伪造信息，引导登录
     if (!userInfo) {
         return (
@@ -67,14 +76,12 @@ const UserSettingsLayout = () => {
         );
     }
 
-    const secondCrumb = CRUMB_TEXT[location.pathname];
-
     return (
         <div className="min-h-screen bg-[#F6F7F9] font-sans">
             {/* ==================== 左侧固定全高侧边栏 ==================== */}
-            <aside className="fixed inset-y-0 left-0 z-10 flex w-56 flex-col border-r border-gray-200/60 bg-white">
+            <aside className="fixed inset-y-0 left-0 z-10 flex w-60 flex-col border-r border-gray-200/60 bg-white pl-9 pr-4">
                 {/* 墨友 logo */}
-                <div className="flex h-14 shrink-0 items-center px-5">
+                <div className="flex h-16 shrink-0 items-center">
                     <img
                         src={moyouLogo}
                         alt="墨友"
@@ -84,12 +91,12 @@ const UserSettingsLayout = () => {
                 </div>
 
                 {/* 个人设置标题 */}
-                <div className="px-5 pt-3 pb-2 text-xs text-gray-400">
+                <div className="pt-3 pb-2 text-xs text-gray-400">
                     个人设置
                 </div>
 
                 {/* 操作导航 */}
-                <nav className="space-y-1 px-3">
+                <nav className="space-y-1">
                     {MENU_ITEMS.map((item) => {
                         const isActive = location.pathname === item.key;
 
@@ -98,7 +105,7 @@ const UserSettingsLayout = () => {
                                 key={item.key}
                                 type="button"
                                 onClick={() => navigate(item.key)}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm cursor-pointer border-0 bg-transparent transition-colors ${
+                                className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-sm cursor-pointer border-0 bg-transparent transition-colors ${
                                     isActive
                                         ? "bg-[#964328]/10 text-[#964328] font-semibold"
                                         : "text-gray-600 hover:bg-gray-50 hover:text-[#3F332A]"
@@ -112,15 +119,15 @@ const UserSettingsLayout = () => {
                 </nav>
 
                 {/* 底部版本号 */}
-                <div className="mt-auto px-5 py-4 text-xs text-gray-300">
+                <div className="mt-auto py-4 text-xs text-gray-300">
                     版本 {APP_VERSION}
                 </div>
             </aside>
 
             {/* ==================== 右侧：顶栏 + 内容区 ==================== */}
-            <div className="ml-56 flex min-h-screen flex-col">
-                {/* 顶栏：面包屑 + 用户下拉（复用组件，compact 模式） */}
-                <header className="flex h-14 shrink-0 items-center justify-between gap-4 px-6">
+            <div className="ml-60 flex min-h-screen flex-col">
+                {/* 顶栏：面包屑 + 用户下拉（复用组件，compact 模式），滚动时吸顶固定 */}
+                <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-gray-200/50 bg-[#F6F7F9]/90 px-8 backdrop-blur">
                     <nav className="text-sm text-gray-400 flex items-center gap-1.5">
                         <span>个人设置</span>
                         <span className="text-gray-300">/</span>
@@ -146,7 +153,7 @@ const UserSettingsLayout = () => {
                 </header>
 
                 {/* 子页面（铺满剩余宽度与高度） */}
-                <main className="flex-1 px-6 pb-6">
+                <main className="flex-1 px-8 pt-6 pb-8">
                     <div key={location.pathname} className="profile-fade-in">
                         <Outlet />
                     </div>

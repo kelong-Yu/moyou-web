@@ -24,6 +24,7 @@ import {
 } from "../../services/calligrapher/api";
 import { followUser, unfollowUser } from "../../services/user/api";
 import MoyouLoading from "../../components/MoyouLoading";
+import { usePageMeta } from "../../hooks/usePageMeta";
 import bgImg from "../../assets/lantingxu.jpg";
 
 // 一级导航：作品 / 粉丝
@@ -37,6 +38,14 @@ const ArticleWorks = () => {
 
     const [loading, setLoading] = useState<boolean>(true);
     const [data, setData] = useState<API.CalligrapherWorksResponse | null>(null);
+
+    // 页面标题 + 浏览历史：取得真实书法家姓名后才设置并上报
+    usePageMeta({
+        title: data?.name ? `${data.name} · 书法大家` : "",
+        pageType: "calligrapher",
+        targetId: id ? Number(id) : undefined,
+        ready: !!data?.name,
+    });
 
     // 交互状态
     const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);

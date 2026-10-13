@@ -12,10 +12,14 @@ import CalligraphyMapBoard from "../../components/CalligraphyMapBoard";
 import HeroContent from "../../components/HeroContent";
 import CalligrapherDetailDrawer from "../../components/CalligrapherDetailDrawer";
 import HeroCalligraphy3DRing from "../../components/HeroCalligraphy3DRing";
+import { usePageMeta } from "../../hooks/usePageMeta";
 
 const Map = () => {
   const { message } = App.useApp();
   const navigate = useNavigate();
+
+  // 页面标题 + 浏览历史
+  usePageMeta({ title: "书家列传", pageType: "calligrapher_list" });
 
   // 朝代列表
   const [dynastyList, setDynastyList] = useState<API.Dynasty[]>([]);

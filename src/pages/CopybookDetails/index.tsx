@@ -4,6 +4,7 @@ import { App } from "antd";
 import HeroContent from "../../components/HeroContent";
 import CalligrapherDetailDrawer from "../../components/CalligrapherDetailDrawer";
 import { getCopybookDetail, getRecommendCopybook,favoriteCopybook,unFavoriteCopybook,getCopybookInteraction,likeCopybook,unlikeCopybook } from "../../services/copybook/api";
+import { usePageMeta } from "../../hooks/usePageMeta";
 import bgImg from "../../assets/lantingxu.jpg";
 import InteractionBar from "../../components/InteractionBar";
 import CommentSection from "../../components/CommentSection";
@@ -39,6 +40,14 @@ const CopybookDetails = () => {
     const navigate = useNavigate();
     const [detail, setDetail] = useState<API.WebCopybookDetailResponse>();
     const [recommendList, setRecommendList] = useState<API.WebCopybookRecommendResponse[]>([]);
+
+    // 页面标题 + 浏览历史：取得真实碑帖名称后才设置并上报
+    usePageMeta({
+        title: detail?.name || "",
+        pageType: "copybook",
+        targetId: detail?.id ?? (id ? Number(id) : undefined),
+        ready: !!detail?.name,
+    });
 
     // 书法家Drawer状态
     const [calligrapherDrawerOpen,setCalligrapherDrawerOpen] = useState(false);

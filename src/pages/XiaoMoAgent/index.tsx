@@ -22,6 +22,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../stores";
+import { usePageMeta } from "../../hooks/usePageMeta";
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
@@ -38,6 +39,9 @@ const XiaoMoAgent = () => {
 
     const {message} = App.useApp();
     const navigate = useNavigate();
+
+    // 页面标题 + 浏览历史
+    usePageMeta({ title: "小墨Agent", pageType: "agent" });
 
     // 从 Redux 获取当前登录用户
     const userInfo = useSelector(

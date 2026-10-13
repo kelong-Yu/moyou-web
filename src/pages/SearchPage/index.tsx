@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getDynastyList } from "../../services/dynasty/api";
 import { search } from "../../services/search/api";
+import { usePageMeta } from "../../hooks/usePageMeta";
 
 const SEARCH_TYPES: { key: API.SearchType; label: string; hint: string }[] = [
     { key: "ALL", label: "全部", hint: "碑帖与书法家" },
@@ -19,6 +20,12 @@ const SearchPage = () => {
     const initialMatchType = searchParams.get("matchType") === "EXACT" ? "EXACT" : "FUZZY";
     const [keyword, setKeyword] = useState(initialKeyword);
     const [submittedKeyword, setSubmittedKeyword] = useState(initialKeyword);
+
+    // 页面标题 + 浏览历史（有关键词时带上关键词）
+    usePageMeta({
+        title: submittedKeyword ? `搜索：${submittedKeyword}` : "搜索",
+        pageType: "search",
+    });
     const [searchType, setSearchType] = useState<API.SearchType>("ALL");
     const [matchType, setMatchType] = useState<API.MatchType>(initialMatchType);
     const [dynasties, setDynasties] = useState<API.Dynasty[]>([]);

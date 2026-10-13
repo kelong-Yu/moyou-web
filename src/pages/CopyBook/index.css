@@ -154,10 +154,10 @@
     font-size: 13px;
   }
 }
-/* 分页按钮整体 */
-.ant-pagination-item,
-.ant-pagination-prev,
-.ant-pagination-next {
+/* 分页按钮整体（作用域限定碑帖字库页，避免污染其他页面分页） */
+.copybook-pagination .ant-pagination-item,
+.copybook-pagination .ant-pagination-prev,
+.copybook-pagination .ant-pagination-next {
 
     width: 56px !important;
     height: 56px !important;
@@ -174,7 +174,7 @@
 
 
 /* 数字链接 */
-.ant-pagination-item a {
+.copybook-pagination .ant-pagination-item a {
 
     display: flex !important;
     align-items: center;
@@ -189,7 +189,7 @@
 
 
 /* 当前页 */
-.ant-pagination-item-active {
+.copybook-pagination .ant-pagination-item-active {
 
     background-color: #964328 !important;
     border-color: #964328 !important;
@@ -197,7 +197,7 @@
 }
 
 
-.ant-pagination-item-active a {
+.copybook-pagination .ant-pagination-item-active a {
 
     color: white !important;
 
@@ -205,8 +205,8 @@
 
 
 /* 上一页下一页箭头居中 */
-.ant-pagination-prev .ant-pagination-item-link,
-.ant-pagination-next .ant-pagination-item-link {
+.copybook-pagination .ant-pagination-prev .ant-pagination-item-link,
+.copybook-pagination .ant-pagination-next .ant-pagination-item-link {
 
     display: flex;
 

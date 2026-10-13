@@ -10,10 +10,14 @@ import { register, sendEmailCode } from "../../services/user/api";
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../../assets/moyoulogo.png";
 import bg from "../../assets/lantingxu.jpg";
+import { usePageMeta } from "../../hooks/usePageMeta";
 
 const Register = () => {
   const { message } = App.useApp();
   const navigate = useNavigate();
+
+  // 页面标题（注册页不记录浏览历史）
+  usePageMeta({ title: "注册", record: false });
   const [form] = Form.useForm();
 
   // 验证码倒计时

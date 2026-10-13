@@ -25,6 +25,7 @@ import {
 import { getMyFavoriteCopybooks, getMyFavoriteCharacters } from "../../services/copybook/api";
 import { unfollowCalligrapher } from "../../services/calligrapher/api";
 import MoyouLoading from "../../components/MoyouLoading";
+import { usePageMeta } from "../../hooks/usePageMeta";
 import CharacterFavoriteCard from "./components/CharacterFavoriteCard";
 import bgImg from "../../assets/lantingxu.jpg";
 
@@ -311,6 +312,14 @@ const UserProfile = () => {
     /** 昵称 / 姓名回退到账号 */
     const displayName =
         profile?.username || profile?.userAccount || "墨友";
+
+    // 页面标题 + 浏览历史：取得真实用户名后才设置并上报
+    usePageMeta({
+        title: profile ? `${displayName} · 个人主页` : "",
+        pageType: "user",
+        targetId: profile?.id ?? routeUserId,
+        ready: !!profile,
+    });
 
     /** 头像降级字符 */
     const avatarChar =
