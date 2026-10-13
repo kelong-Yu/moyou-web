@@ -2,13 +2,14 @@ import { Avatar, Dropdown, App } from "antd";
 import type { MenuProps } from "antd";
 import { 
     CreditCardOutlined, 
-    HeartOutlined, 
+    SettingOutlined, 
     HistoryOutlined, 
     MessageOutlined,
     KeyOutlined, 
     LogoutOutlined,
     DownOutlined,
-    UpOutlined
+    UpOutlined,
+    HomeOutlined
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { outLogin } from "../../services/user/api";
@@ -20,9 +21,15 @@ import { useState } from "react";
 
 interface UserDropdownProps {
     isDarkHeader: boolean;
+    /**
+     * 展示模式：
+     * default → 完整菜单（个人功能全量，用于顶部导航栏）
+     * compact → 精简菜单（我的主页 / 回到首页 / 退出登录，用于个人设置页）
+     */
+    variant?: "default" | "compact";
 }
 
-const UserDropdown = ({isDarkHeader}:UserDropdownProps) => {
+const UserDropdown = ({isDarkHeader, variant = "default"}:UserDropdownProps) => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
     const { message } = App.useApp();
@@ -62,7 +69,7 @@ const UserDropdown = ({isDarkHeader}:UserDropdownProps) => {
         return <span className="text-xs text-gray-400 mt-1">普通用户</span>;
     };
 
-    const items: MenuProps["items"] = [
+    const fullItems: MenuProps["items"] = [
         // 1. 顶部用户信息
         {
             key: "user-header",
@@ -102,14 +109,14 @@ const UserDropdown = ({isDarkHeader}:UserDropdownProps) => {
         // 3. 功能列表项
         {
             key: "profile",
-            label: <span className="text-gray-700">个人主页</span>,
+            label: <span className="text-gray-700">我的主页</span>,
             icon: <CreditCardOutlined className="text-gray-600 text-base" />,
             className: "!py-2.2 !my-1 !px-4 !text-sm",
         },
         {
-            key: "collection",
-            label: <span className="text-gray-700">我的收藏</span>,
-            icon: <HeartOutlined className="text-gray-600 text-base" />,
+            key: "/settings/profile",
+            label: <span className="text-gray-700">个人设置</span>,
+            icon: <SettingOutlined className="text-gray-600 text-base" />,
             className: "!py-2.2 !my-1 !px-4 !text-sm",
         },
         {
@@ -145,6 +152,36 @@ const UserDropdown = ({isDarkHeader}:UserDropdownProps) => {
         },
     ];
 
+    // 精简模式（个人设置页右上角）：我的主页 / 回到首页 / 退出登录
+    const compactItems: MenuProps["items"] = [
+        {
+            key: "profile",
+            label: <span className="text-gray-700">我的主页</span>,
+            icon: <CreditCardOutlined className="text-gray-600 text-base" />,
+            className: "!py-2.2 !my-1 !px-4 !text-sm",
+        },
+        {
+            key: "home",
+            label: <span className="text-gray-700">回到首页</span>,
+            icon: <HomeOutlined className="text-gray-600 text-base" />,
+            className: "!py-2.2 !my-1 !px-4 !text-sm",
+        },
+        {
+            type: "divider",
+            className: "!my-1 !mx-3 !border-black/[0.02]",
+        },
+        {
+            key: "logout",
+            danger: true,
+            label: <span className="font-medium">退出登录</span>,
+            icon: <LogoutOutlined className="text-base" />,
+            className: "!py-3 !px-4 text-sm mt-2 hover:!bg-red-50 transition-colors",
+        },
+    ];
+
+    const items: MenuProps["items"] =
+        variant === "compact" ? compactItems : fullItems;
+
     const handleMenuClick: MenuProps["onClick"] = async ({ key }) => {
         if (key === "user-header" || key === "section-title") return;
 
@@ -152,14 +189,20 @@ const UserDropdown = ({isDarkHeader}:UserDropdownProps) => {
 
         if (key === "profile") {
             navigate("/profile");
-        } else if (key === "collection") {
-            navigate("/collection");
+        } else if (key === "home") {
+            navigate("/");
+        } else if (key === "/settings/profile") {
+            // 个人设置 → 个人中心·个人资料
+            navigate("/settings/profile");
         } else if (key === "history") {
-            navigate("/history");
-        } else if (key === "footprint") {
-            navigate("/footprint");
+            // 浏览历史 → 个人中心·浏览历史
+            navigate("/settings/history");
+        } else if (key === "mymessage") {
+            // 我的消息 → 个人中心·我的消息
+            navigate("/settings/messages");
         } else if (key === "apiKey") {
-            navigate("/api-key");
+            // API 密钥 → 个人中心·API 密钥
+            navigate("/settings/api-key");
         } else if (key === "logout") {
             try {
                 await outLogin();

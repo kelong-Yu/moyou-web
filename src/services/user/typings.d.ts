@@ -25,6 +25,18 @@ declare namespace API {
     };
     address?: string;
     phone?: string;
+    /** 个人简介（编辑资料使用，数据库已新增该字段） */
+    signature?: string;
+  };
+
+  /**
+   * Web端编辑个人资料请求参数
+   */
+  type UserProfileUpdateParams = {
+    username?: string;
+    phone?: string;
+    signature?: string;
+    gender?: number;
   };
 
   type LoginResult = {
@@ -49,6 +61,55 @@ declare namespace API {
     code?: number;
     message?: string;
     data?: string;
+  };
+
+  /**
+   * 用户公开资料（个人主页 Hero 使用）
+   *
+   * 包含真实的关注/粉丝统计与当前登录用户的关注状态
+   */
+  type UserProfile = {
+    id: number;
+    username?: string;
+    userAccount?: string;
+    avatarUrl?: string;
+    gender?: number;
+    role?: number;
+    createTime?: string;
+    followingCount?: number;
+    followerCount?: number;
+    /** 当前登录用户是否已关注该用户 */
+    followed?: boolean;
+  };
+
+  /**
+   * 用户公开资料卡片（粉丝列表条目）
+   */
+  type UserProfileCard = {
+    id: number;
+    username?: string;
+    userAccount?: string;
+    avatarUrl?: string;
+    role?: number;
+    createTime?: string;
+    /** 当前登录用户是否已关注该用户 */
+    followed?: boolean;
+  };
+
+  /**
+   * 个人主页"关注列表"条目
+   *
+   * type = user        → 关注的用户，跳转 /user/{targetId}，取消走用户取关接口
+   * type = calligrapher → 关注的书法家，跳转 /aritcleWorks/{targetId}，取消走书法家取关接口
+   */
+  type FollowingItem = {
+    type: "user" | "calligrapher";
+    targetId: number;
+    name?: string;
+    avatarUrl?: string;
+    role?: number;
+    subtitle?: string;
+    createTime?: string;
   };
 
   /**

@@ -23,7 +23,7 @@ const HeaderMenu: React.FC = () => {
 
   // 2. 配置需要深色/红底背景的路由前缀（不需要加 * 通配符）
   // 注意：以这些路径开头的页面（例如 /aritcleWorks/27）都会生效
-  const darkPagePrefixes = ["/map", "/master", "/copybook", "/aritcleWorks","/search"];
+  const darkPagePrefixes = ["/map", "/master", "/copybook", "/aritcleWorks","/search","/profile","/user"];
 
   // 3. 使用 startsWith 进行前缀匹配
   const isDarkHeader =

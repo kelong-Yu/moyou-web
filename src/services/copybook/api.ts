@@ -217,6 +217,71 @@ export async function getHotCopybooks(
 
 
 /**
+ * 当前用户收藏的碑帖列表
+ *
+ * GET /api/web/copybook/favorites
+ *
+ * 需要登录，按收藏时间倒序，
+ * 返回碑帖卡片数据（复用 WebCopybookResponse）。
+ */
+export async function getMyFavoriteCopybooks() {
+  return request<API.Result<API.WebCopybookResponse[]>>(
+    '/api/web/copybook/favorites',
+    {
+      method: 'GET',
+    }
+  );
+}
+
+
+/**
+ * 当前用户收藏的单字列表
+ *
+ * GET /api/web/character/favorites
+ *
+ * 需要登录，按收藏时间倒序，图片为临时访问地址。
+ */
+export async function getMyFavoriteCharacters() {
+  return request<API.Result<API.CharacterFavoriteItem[]>>(
+    '/api/web/character/favorites',
+    {
+      method: 'GET',
+    }
+  );
+}
+
+/** 单字收藏状态 GET /api/web/character/{characterId}/favorite-status（游客可访问） */
+export async function getCharacterFavoriteStatus(characterId: number) {
+  return request<API.Result<boolean>>(
+    `/api/web/character/${characterId}/favorite-status`,
+    {
+      method: 'GET',
+    }
+  );
+}
+
+/** 收藏单字 POST /api/web/character/{characterId}/favorite（需要登录） */
+export async function favoriteCharacter(characterId: number) {
+  return request<API.Result<null>>(
+    `/api/web/character/${characterId}/favorite`,
+    {
+      method: 'POST',
+    }
+  );
+}
+
+/** 取消收藏单字 DELETE /api/web/character/{characterId}/favorite（需要登录） */
+export async function unfavoriteCharacter(characterId: number) {
+  return request<API.Result<null>>(
+    `/api/web/character/${characterId}/favorite`,
+    {
+      method: 'DELETE',
+    }
+  );
+}
+
+
+/**
  * 获取碑帖互动信息
  *
  * 游客也可以访问：

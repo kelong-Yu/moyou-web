@@ -73,3 +73,69 @@ export async function getCalligrapherWorks(
         }
     );
 }
+
+/**
+ * 书法家关注状态 + 真实粉丝数
+ * GET /api/web/calligrapher/${id}/follow-status
+ *
+ * 游客可访问：followed 恒为 false，粉丝数为真实统计
+ */
+export async function getCalligrapherFollowStatus(
+    id: number,
+    options?: {[key:string]:any}
+){
+    return request<API.Result<API.CalligrapherFollowStatus>>(
+        `/api/web/calligrapher/${id}/follow-status`,
+        {
+            method:'GET',
+            ...(options || {})
+        }
+    );
+}
+
+/** 关注书法家 POST /api/web/calligrapher/${id}/follow（需要登录） */
+export async function followCalligrapher(
+    id: number,
+    options?: {[key:string]:any}
+){
+    return request<API.Result<null>>(
+        `/api/web/calligrapher/${id}/follow`,
+        {
+            method:'POST',
+            ...(options || {})
+        }
+    );
+}
+
+/** 取消关注书法家 DELETE /api/web/calligrapher/${id}/follow（需要登录） */
+export async function unfollowCalligrapher(
+    id: number,
+    options?: {[key:string]:any}
+){
+    return request<API.Result<null>>(
+        `/api/web/calligrapher/${id}/follow`,
+        {
+            method:'DELETE',
+            ...(options || {})
+        }
+    );
+}
+
+/**
+ * 书法家的真实粉丝列表
+ * GET /api/web/calligrapher/${id}/followers
+ *
+ * 游客可访问；followed 表示当前登录用户是否已关注该粉丝用户
+ */
+export async function getCalligrapherFollowers(
+    id: number,
+    options?: {[key:string]:any}
+){
+    return request<API.Result<API.UserProfileCard[]>>(
+        `/api/web/calligrapher/${id}/followers`,
+        {
+            method:'GET',
+            ...(options || {})
+        }
+    );
+}

@@ -14,7 +14,12 @@ import {
     getPractiseInit,
     getPractiseCharacters,
     getHotCopybooks,
+    getCharacterFavoriteStatus,
+    favoriteCharacter,
+    unfavoriteCharacter,
 } from "../../services/copybook/api";
+import { useSelector } from "react-redux";
+import type { RootState } from "../../stores";
 import MoyouLoading from "../../components/MoyouLoading";
 import PractiseToolbox from "./components/PractiseToolbox";
 
@@ -133,8 +138,14 @@ const CopybookPractise = () => {
     /** 释文对照展开开关（默认关闭，点击工具箱"释文对照"切换） */
     const [showTranscription, setShowTranscription] = useState(false);
 
-    /** 单字收藏（本地演示状态，后端暂无单字收藏接口） */
-    const [localFavorites, setLocalFavorites] = useState<number[]>([]);
+    /** 当前登录用户（单字收藏需要登录） */
+    const userInfo = useSelector((state: RootState) => state.user.userInfo);
+
+    /** 当前选中单字是否已收藏（服务端真实状态） */
+    const [characterFavorited, setCharacterFavorited] = useState(false);
+
+    /** 收藏请求进行中，防止重复提交 */
+    const [favoriteSubmitting, setFavoriteSubmitting] = useState(false);
 
     // ==================== 引用（供定时刷新读取最新值） ====================
     const middlePageRef = useRef(middlePage);
@@ -320,6 +331,33 @@ const CopybookPractise = () => {
         });
     };
 
+    // 选中单字变化时查询该单字的真实收藏状态（游客返回 false）
+    useEffect(() => {
+        const characterId = selectedCharacter?.id;
+
+        if (characterId == null) {
+            setCharacterFavorited(false);
+            return;
+        }
+
+        let cancelled = false;
+
+        getCharacterFavoriteStatus(characterId)
+            .then((res: any) => {
+                if (cancelled) return;
+                if (res.code === 200) {
+                    setCharacterFavorited(!!res.data);
+                }
+            })
+            .catch(() => {
+                // 状态查询失败不阻塞页面，保持未收藏态
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedCharacter?.id]);
+
     // ==================== 交互处理 ====================
 
     /** 搜索单字：不跳转、不刷新，仅更新中间列表 */
@@ -348,22 +386,44 @@ const CopybookPractise = () => {
         loadCharacters(page, searchKeyword);
     };
 
-    /** 收藏当前单字（占位：后端暂无单字收藏接口，仅本地演示） */
+    /** 收藏 / 取消收藏当前单字（真实接口，成功后以服务端状态为准） */
     const handleFavorite = () => {
         const character = selectedCharacter;
         if (!character) return;
 
-        const favorited = localFavorites.includes(character.id);
-        setLocalFavorites((prev) =>
-            favorited
-                ? prev.filter((cid) => cid !== character.id)
-                : [...prev, character.id]
-        );
-        message.info(
-            favorited
-                ? "已取消收藏（单字收藏服务端接口暂未开放，当前为本地演示）"
-                : "收藏成功（单字收藏服务端接口暂未开放，当前为本地演示）"
-        );
+        if (!userInfo) {
+            message.info("请先登录");
+            navigate("/login");
+            return;
+        }
+        if (favoriteSubmitting) return;
+
+        setFavoriteSubmitting(true);
+
+        (
+            characterFavorited
+                ? unfavoriteCharacter(character.id)
+                : favoriteCharacter(character.id)
+        )
+            .then((res: any) => {
+                if (res.code === 200) {
+                    setCharacterFavorited(!characterFavorited);
+                    message.success(
+                        characterFavorited ? "已取消收藏" : "收藏成功"
+                    );
+                } else if (res.code === 4001) {
+                    message.info("请先登录");
+                    navigate("/login");
+                } else {
+                    message.error(res.message || "操作失败，请稍后重试");
+                }
+            })
+            .catch(() => {
+                message.error("操作失败，请稍后重试");
+            })
+            .finally(() => {
+                setFavoriteSubmitting(false);
+            });
     };
 
     /** 田字格显示开关 */
@@ -609,20 +669,21 @@ const CopybookPractise = () => {
                     <div className="flex-1 min-w-0 flex gap-3 lg:h-[380px]">
                         {/* 竖向操作图标栏 */}
                         <div className="w-11 shrink-0 rounded-xl border border-[#964328]/15 bg-white/75 shadow-sm flex flex-col items-center gap-2 py-2.5 px-1 self-start">
-                            <Tooltip title="收藏单字" placement="right">
+                            <Tooltip
+                                title={characterFavorited ? "取消收藏" : "收藏单字"}
+                                placement="right"
+                            >
                                 <button
                                     type="button"
                                     onClick={handleFavorite}
-                                    disabled={!selectedCharacter}
+                                    disabled={!selectedCharacter || favoriteSubmitting}
                                     className={`w-8 h-8 rounded-lg border flex items-center justify-center text-base cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-0 ${
-                                        selectedCharacter &&
-                                        localFavorites.includes(selectedCharacter.id)
+                                        characterFavorited
                                             ? "text-[#964328] bg-[#964328]/10"
                                             : "text-[#756B61] hover:text-[#964328] hover:bg-[#964328]/5"
                                     }`}
                                 >
-                                    {selectedCharacter &&
-                                    localFavorites.includes(selectedCharacter.id) ? (
+                                    {characterFavorited ? (
                                         <HeartFilled />
                                     ) : (
                                         <HeartOutlined />

@@ -342,6 +342,23 @@ declare namespace API {
     viewCount?: number;
   }
 
+  /**
+   * 用户收藏的单字卡片
+   *
+   * imageUrl 为后端生成的临时访问地址
+   */
+  type CharacterFavoriteItem = {
+    characterId: number;
+    characterText?: string;
+    imageUrl?: string;
+    copybookId: number;
+    copybookName?: string;
+    calligrapherName?: string;
+    dynastyName?: string;
+    style?: string;
+    createTime?: string;
+  }
+
   type WebCopybookInteractionResponse = {
     /**
      * 点赞数量

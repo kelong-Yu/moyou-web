@@ -186,6 +186,16 @@ declare namespace API {
     artisticLife?: string;
     goodAtStyle?: string;
     copybooks ?: WebCopybookResponse[]
-  }
+  };
+
+  /**
+   * 书法家关注状态（含真实粉丝数统计）
+   */
+  type CalligrapherFollowStatus = {
+    /** 当前登录用户是否已关注该书法家（未登录恒为 false） */
+    followed?: boolean;
+    /** 书法家粉丝数（真实数据库统计） */
+    followerCount?: number;
+  };
 
 }

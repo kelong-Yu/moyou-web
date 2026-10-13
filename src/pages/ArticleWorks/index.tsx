@@ -12,8 +12,18 @@ import {
     UserOutlined,
     RightOutlined
 } from "@ant-design/icons";
-import { Spin, Empty, message } from "antd";
-import { getCalligrapherWorks } from "../../services/calligrapher/api";
+import { Spin, Empty, message, Avatar } from "antd";
+import { useSelector } from "react-redux";
+import type { RootState } from "../../stores";
+import {
+    getCalligrapherWorks,
+    getCalligrapherFollowStatus,
+    followCalligrapher,
+    unfollowCalligrapher,
+    getCalligrapherFollowers,
+} from "../../services/calligrapher/api";
+import { followUser, unfollowUser } from "../../services/user/api";
+import MoyouLoading from "../../components/MoyouLoading";
 import bgImg from "../../assets/lantingxu.jpg";
 
 // 一级导航：作品 / 粉丝
@@ -29,11 +39,22 @@ const ArticleWorks = () => {
     const [data, setData] = useState<API.CalligrapherWorksResponse | null>(null);
 
     // 交互状态
-    const [isFollowed, setIsFollowed] = useState<boolean>(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
     const [activeMainTab, setActiveMainTab] = useState<MainTabType>("works");
     const [activeTab, setActiveTab] = useState<TabType>("all");
-    const [followedFanIds, setFollowedFanIds] = useState<number[]>([]);
+
+    // 当前登录用户（关注操作需要登录）
+    const userInfo = useSelector((state: RootState) => state.user.userInfo);
+
+    // 书法家关注状态与真实粉丝数（数据库统计）
+    const [followStatus, setFollowStatus] = useState<API.CalligrapherFollowStatus>();
+    const [followStatusLoading, setFollowStatusLoading] = useState<boolean>(true);
+    const [followSubmitting, setFollowSubmitting] = useState<boolean>(false);
+
+    // 书法家真实粉丝列表
+    const [fansList, setFansList] = useState<API.UserProfileCard[]>([]);
+    const [fansLoading, setFansLoading] = useState<boolean>(false);
+    const [fansError, setFansError] = useState<boolean>(false);
 
     useEffect(() => {
         if (!id) return;
@@ -50,6 +71,58 @@ const ArticleWorks = () => {
                 setLoading(false);
             });
     }, [id]);
+
+    // 加载书法家关注状态与真实粉丝数
+    useEffect(() => {
+        if (!id) return;
+
+        let cancelled = false;
+        setFollowStatusLoading(true);
+
+        getCalligrapherFollowStatus(Number(id))
+            .then((res: any) => {
+                if (cancelled) return;
+                if (res.code === 200) {
+                    setFollowStatus(res.data);
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setFollowStatusLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [id]);
+
+    // 加载书法家真实粉丝列表（进入粉丝 Tab 时）
+    useEffect(() => {
+        if (!id || activeMainTab !== "fans") return;
+
+        let cancelled = false;
+        setFansLoading(true);
+        setFansError(false);
+
+        getCalligrapherFollowers(Number(id))
+            .then((res: any) => {
+                if (cancelled) return;
+                if (res.code === 200) {
+                    setFansList(res.data || []);
+                } else {
+                    setFansError(true);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) setFansError(true);
+            })
+            .finally(() => {
+                if (!cancelled) setFansLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [id, activeMainTab]);
 
     // 计算所有作品的总获赞量
     const totalLikes = useMemo(() => {
@@ -71,28 +144,99 @@ const ArticleWorks = () => {
         return works;
     }, [data, activeTab]);
 
-    // 关注操作切换
-    const handleFollowToggle = () => {
-        setIsFollowed(!isFollowed);
-        message.success(isFollowed ? "已取消关注" : "关注成功");
+    /** 未登录时统一引导登录（沿用项目现有方式） */
+    const requireLogin = () => {
+        message.info("请先登录");
+        navigate("/login");
     };
 
-    const mockFansList = [
-        { id: 1, name: "墨客千寻", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=1", bio: "钟情行草，醉心书法" },
-        { id: 2, name: "兰亭遗风", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=2", bio: "临池研墨三十载" },
-        { id: 3, name: "竹影扫阶", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=3", bio: "古法字帖收藏者" },
-        { id: 4, name: "砚池清欢", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=4", bio: "书法爱好者" },
-    ];
+    /**
+     * 关注 / 取消关注书法家（真实接口）
+     *
+     * 成功后重新拉取服务端状态：按钮与粉丝数以数据库为准。
+     */
+    const handleFollowToggle = () => {
+        if (!id) return;
+        if (!userInfo) {
+            requireLogin();
+            return;
+        }
+        if (followSubmitting) return;
 
-    // 粉丝回关状态（前端本地交互）
-    const handleFanFollowToggle = (fanId: number) => {
-        const isAlreadyFollowed = followedFanIds.includes(fanId);
-        setFollowedFanIds((current) =>
-            current.includes(fanId)
-                ? current.filter((item) => item !== fanId)
-                : [...current, fanId]
-        );
-        message.success(isAlreadyFollowed ? "已取消回关" : "回关成功");
+        setFollowSubmitting(true);
+        const wasFollowed = followStatus?.followed;
+
+        (
+            wasFollowed
+                ? unfollowCalligrapher(Number(id))
+                : followCalligrapher(Number(id))
+        )
+            .then((res: any) => {
+                if (res.code === 200) {
+                    // 服务端确认成功后，重新查询真实状态与粉丝数
+                    return getCalligrapherFollowStatus(Number(id)).then(
+                        (statusRes: any) => {
+                            if (statusRes.code === 200) {
+                                setFollowStatus(statusRes.data);
+                            }
+                        }
+                    );
+                }
+                if (res.code === 4001) {
+                    requireLogin();
+                } else {
+                    message.error(res.message || "操作失败，请稍后重试");
+                }
+            })
+            .catch(() => {
+                message.error("操作失败，请稍后重试");
+            })
+            .finally(() => {
+                setFollowSubmitting(false);
+            });
+    };
+
+    /**
+     * 粉丝列表行内的关注 / 取消关注
+     *
+     * 这是针对粉丝用户的"用户关注"操作（user_follow），
+     * 调用真实用户关注接口，成功后仅更新该行状态。
+     */
+    const handleFanFollowToggle = (fan: API.UserProfileCard) => {
+        if (!userInfo) {
+            requireLogin();
+            return;
+        }
+        if (followSubmitting) return;
+
+        setFollowSubmitting(true);
+
+        (
+            fan.followed
+                ? unfollowUser(fan.id)
+                : followUser(fan.id)
+        )
+            .then((res: any) => {
+                if (res.code === 200) {
+                    setFansList((prev) =>
+                        prev.map((item) =>
+                            item.id === fan.id
+                                ? { ...item, followed: !item.followed }
+                                : item
+                        )
+                    );
+                } else if (res.code === 4001) {
+                    requireLogin();
+                } else {
+                    message.error(res.message || "操作失败，请稍后重试");
+                }
+            })
+            .catch(() => {
+                message.error("操作失败，请稍后重试");
+            })
+            .finally(() => {
+                setFollowSubmitting(false);
+            });
     };
 
     return (
@@ -141,7 +285,9 @@ const ArticleWorks = () => {
                                                 className="flex items-baseline gap-1 cursor-pointer hover:text-amber-300 transition-colors bg-transparent border-0 p-0"
                                             >
                                                 <span className="text-xs text-gray-400">粉丝</span>
-                                                <span className="font-semibold text-white">1.2万</span>
+                                                <span className="font-semibold text-white">
+                                                    {followStatus?.followerCount ?? 0}
+                                                </span>
                                             </button>
 
                                             <span className="w-px h-3 bg-gray-600/80 my-auto" />
@@ -149,7 +295,7 @@ const ArticleWorks = () => {
                                             <div className="flex items-baseline gap-1">
                                                 <span className="text-xs text-gray-400">获赞</span>
                                                 <span className="font-semibold text-white">
-                                                    {totalLikes > 0 ? totalLikes : "9.1万"}
+                                                    {totalLikes || 0}
                                                 </span>
                                             </div>
                                         </div>
@@ -180,13 +326,14 @@ const ArticleWorks = () => {
                                 <div className="shrink-0 flex flex-col items-end gap-2.5">
                                     <button
                                         onClick={handleFollowToggle}
-                                        className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
-                                            isFollowed
+                                        disabled={followSubmitting || followStatusLoading}
+                                        className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                                            followStatus?.followed
                                                 ? "bg-white/15 text-gray-200 hover:bg-white/20 border border-white/20"
                                                 : "bg-[#964328] hover:bg-[#7e3720] text-amber-50 border border-amber-500/30 shadow-md active:scale-95"
                                         }`}
                                     >
-                                        {isFollowed ? (
+                                        {followStatus?.followed ? (
                                             <><CheckOutlined className="text-xs" /> 已关注</>
                                         ) : (
                                             <><PlusOutlined className="text-xs" /> 关注</>
@@ -351,58 +498,76 @@ const ArticleWorks = () => {
                         )}
                     </>
                 ) : (
-                    /* 粉丝列表：去除外边框，无内部背景，只保留底边框与页面背景一致 */
+                    /* 粉丝列表：真实关注该书法家的用户（无外框、底部分隔线与页面背景一致） */
                     <div className="mb-8">
-                        {mockFansList.length === 0 ? (
+                        {fansLoading ? (
+                            <div className="h-64">
+                                <MoyouLoading tip="正在加载粉丝列表……" />
+                            </div>
+                        ) : fansError ? (
+                            <div className="py-16 text-center">
+                                <Empty description="粉丝列表加载失败，请稍后重试" />
+                            </div>
+                        ) : fansList.length === 0 ? (
                             <div className="py-16 text-center">
                                 <Empty description="暂时还没有粉丝" />
                             </div>
                         ) : (
-                            <div>
-                                {mockFansList.map((fan) => {
-                                    const isFanFollowed = followedFanIds.includes(fan.id);
-
-                                    return (
-                                        <div
-                                            key={fan.id}
-                                            className="group flex items-center gap-3 py-4 border-b border-[#964328]/15 transition-colors hover:bg-black/5 sm:gap-4 px-2"
+                            <div className="px-2">
+                                {fansList.map((fan) => (
+                                    <div
+                                        key={fan.id}
+                                        className="group flex items-center gap-3 py-4 border-b border-[#964328]/15 transition-colors hover:bg-black/5 sm:gap-4 px-2"
+                                    >
+                                        <Avatar
+                                            size={52}
+                                            src={fan.avatarUrl || undefined}
+                                            onClick={() => navigate(`/user/${fan.id}`)}
+                                            className="!bg-[#FBEDE8] !text-[#6F3220] shrink-0 font-semibold cursor-pointer border border-[#C7A16A]/50 shadow-sm"
                                         >
-                                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-[#C7A16A]/50 bg-[#F5EBDD] p-0.5 shadow-sm sm:h-14 sm:w-14">
-                                                <img
-                                                    src={fan.avatar}
-                                                    alt={fan.name}
-                                                    className="h-full w-full rounded-full object-cover"
-                                                />
-                                            </div>
+                                            {(fan.username || fan.userAccount || "?")[0]?.toUpperCase()}
+                                        </Avatar>
 
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <h3 className="truncate text-sm font-bold text-[#3F332A] transition-colors group-hover:text-[#964328]">
-                                                        {fan.name}
-                                                    </h3>
+                                        <div
+                                            className="min-w-0 flex-1 cursor-pointer"
+                                            onClick={() => navigate(`/user/${fan.id}`)}
+                                        >
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <h3 className="truncate text-sm font-bold text-[#3F332A] transition-colors group-hover:text-[#964328]">
+                                                    {fan.username || fan.userAccount || "墨友"}
+                                                </h3>
+                                                {fan.role === 1 || fan.role === 2 ? (
+                                                    <span className="rounded border border-[#C7A16A]/30 bg-[#F8F0E2] px-1.5 py-0.5 text-[10px] text-[#9A7440]">
+                                                        {fan.role === 1 ? "管理员" : "VIP 会员"}
+                                                    </span>
+                                                ) : (
                                                     <span className="rounded border border-[#C7A16A]/30 bg-[#F8F0E2] px-1.5 py-0.5 text-[10px] text-[#9A7440]">
                                                         书友
                                                     </span>
-                                                </div>
-                                                <p className="mt-1 truncate text-xs leading-relaxed text-[#8B8178] sm:text-sm">
-                                                    {fan.bio}
-                                                </p>
+                                                )}
                                             </div>
+                                            <p className="mt-1 truncate text-xs leading-relaxed text-[#8B8178] sm:text-sm">
+                                                @{fan.userAccount || "未知账号"}
+                                            </p>
+                                        </div>
 
+                                        {/* 粉丝行操作：自己所在行不显示按钮；书法家粉丝列表未关注显示"关注" */}
+                                        {!(userInfo && fan.id === userInfo.id) && (
                                             <button
                                                 type="button"
-                                                onClick={() => handleFanFollowToggle(fan.id)}
-                                                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs transition-all sm:px-4 sm:text-sm ${
-                                                    isFanFollowed
+                                                disabled={followSubmitting}
+                                                onClick={() => handleFanFollowToggle(fan)}
+                                                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs transition-all sm:px-4 sm:text-sm cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                                                    fan.followed
                                                         ? "border-[#964328]/20 bg-[#F4E8DA] text-[#8C6049] hover:bg-[#EBDAC6]"
                                                         : "border-[#964328] bg-[#964328] text-[#FFF8ED] hover:bg-[#7E3720]"
                                                 }`}
                                             >
-                                                {isFanFollowed ? "已回关" : "回关"}
+                                                {fan.followed ? "已关注" : "关注"}
                                             </button>
-                                        </div>
-                                    );
-                                })}
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>

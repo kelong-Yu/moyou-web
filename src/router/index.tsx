@@ -10,6 +10,11 @@ import AritcleWorks from "../pages/ArticleWorks";
 import SearchPage from "../pages/SearchPage";
 import XiaoMoAgent from "../pages/XiaoMoAgent";
 import CopybookPractise from "../pages/CopybookPractise";
+import UserProfile from "../pages/UserProfile";
+import UserSettingsLayout from "../pages/UserSettings/UserSettingsLayout";
+import ProfileSettings from "../pages/UserSettings/ProfileSettings";
+import SettingsPlaceholder from "../pages/UserSettings/SettingsPlaceholder";
+import { Navigate } from "react-router-dom";
 
 const router = createBrowserRouter([
     {
@@ -48,7 +53,16 @@ const router = createBrowserRouter([
             {
                 path: "/search",
                 element: <SearchPage />
-                
+            },
+            {
+                // 个人主页（默认查看当前登录用户）
+                path: "/profile",
+                element: <UserProfile />
+            },
+            {
+                // 查看其他用户的个人主页
+                path: "/user/:id",
+                element: <UserProfile />
             }
         ]
     },
@@ -59,6 +73,34 @@ const router = createBrowserRouter([
     {
         path: "/register",
         element: <Register />
+    },
+    {
+        // 个人中心（独立布局：左侧导航 + 面包屑 + 用户下拉）
+        path: "/settings",
+        element: <UserSettingsLayout />,
+        children: [
+            { index: true, element: <Navigate to="/settings/profile" replace /> },
+            {
+                path: "profile",
+                element: <ProfileSettings />
+            },
+            {
+                path: "messages",
+                element: <SettingsPlaceholder title="我的消息" />
+            },
+            {
+                path: "history",
+                element: <SettingsPlaceholder title="浏览历史" />
+            },
+            {
+                path: "api-key",
+                element: <SettingsPlaceholder title="API 密钥" />
+            },
+            {
+                path: "homepage",
+                element: <SettingsPlaceholder title="主页设置" />
+            }
+        ]
     }
 
 ])
