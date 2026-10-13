@@ -14,6 +14,7 @@ import UserProfile from "../pages/UserProfile";
 import UserSettingsLayout from "../pages/UserSettings/UserSettingsLayout";
 import ProfileSettings from "../pages/UserSettings/ProfileSettings";
 import VisitHistorySettings from "../pages/UserSettings/VisitHistorySettings";
+import MessageSettings from "../pages/UserSettings/MessageSettings";
 import SettingsPlaceholder from "../pages/UserSettings/SettingsPlaceholder";
 import { Navigate } from "react-router-dom";
 
@@ -87,7 +88,7 @@ const router = createBrowserRouter([
             },
             {
                 path: "messages",
-                element: <SettingsPlaceholder title="我的消息" />
+                element: <MessageSettings />
             },
             {
                 path: "history",

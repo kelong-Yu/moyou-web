@@ -75,6 +75,18 @@ html, body, #root, .ant-layout {
     color: #fff;
 }
 
+/* =========================================================
+   我的消息 Tab：主题红选中态（ink bar / 文字 / hover）
+   ========================================================= */
+.settings-message-tabs .ant-tabs-ink-bar {
+    background: #964328;
+}
+
+.settings-message-tabs .ant-tabs-tab:hover .ant-tabs-tab-btn,
+.settings-message-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: #964328 !important;
+}
+
 /* 快速跳转输入框同步缩小（开启 showQuickJumper 的页面用） */
 .theme-pagination .ant-pagination-options .ant-input {
     height: 28px;

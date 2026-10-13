@@ -1,4 +1,4 @@
-import { Avatar, Dropdown, App } from "antd";
+import { Dropdown, App } from "antd";
 import type { MenuProps } from "antd";
 import { 
     CreditCardOutlined, 
@@ -13,10 +13,12 @@ import {
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { outLogin } from "../../services/user/api";
+import { getMessageUnreadCounts } from "../../services/message/api";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../../stores";
 import { clearUserInfo } from "../../stores/slices/userSlice";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import UserAvatar from "../UserAvatar";
 
 
 interface UserDropdownProps {
@@ -38,8 +40,37 @@ const UserDropdown = ({isDarkHeader, variant = "default"}:UserDropdownProps) => 
     // 从 Redux 获取当前用户
     const userInfo = useSelector((state: RootState) => state.user.userInfo);
 
-    // 统一提取用户名或账号的首字母作为头像降级显示
-    const firstChar = userInfo?.username?.[0]?.toUpperCase() || userInfo?.userAccount?.[0]?.toUpperCase() || "L";
+    /**
+     * 「我的消息」未读红点（主题色，不带数字）：
+     * 系统通知 + 互动消息任一存在未读即显示，两类全部已读后才消失。
+     * 打开下拉菜单时重新拉取，保证在消息页操作后即时更新。
+     */
+    const [hasUnreadMessage, setHasUnreadMessage] = useState(false);
+
+    const refreshUnreadDot = () => {
+        if (!userInfo) {
+            setHasUnreadMessage(false);
+            return;
+        }
+        getMessageUnreadCounts()
+            .then((res: any) => {
+                if (res.code === 200 && res.data) {
+                    setHasUnreadMessage(
+                        (res.data.announcementUnread || 0) +
+                            (res.data.commentUnread || 0) >
+                            0
+                    );
+                }
+            })
+            .catch(() => {
+                // 拉取失败不影响菜单正常使用
+            });
+    };
+
+    useEffect(() => {
+        refreshUnreadDot();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userInfo]);
 
     // 渲染用户角色标签（0: 普通用户, 1: 管理员, 2: 会员）
     const renderRoleTag = () => {
@@ -77,13 +108,13 @@ const UserDropdown = ({isDarkHeader, variant = "default"}:UserDropdownProps) => 
             className: "cursor-default !bg-transparent hover:!bg-transparent !p-0",
             label: (
                 <div className="flex items-center gap-3 px-3 py-2">
-                    <Avatar 
+                    <UserAvatar 
                         size={42} 
-                        src={userInfo?.avatarUrl || undefined} 
-                        className="!bg-[#FBEDE8] !text-[#6F3220] shrink-0 font-semibold"
-                    >
-                        {!userInfo?.avatarUrl && firstChar}
-                    </Avatar>
+                        src={userInfo?.avatarUrl} 
+                        account={userInfo?.userAccount}
+                        name={userInfo?.username}
+                        className="shrink-0 font-semibold"
+                    />
                     <div className="flex flex-col min-w-0">
                         <span className="font-bold text-gray-900 text-sm leading-tight truncate">
                             {userInfo?.username || userInfo?.userAccount || "luck"}
@@ -127,7 +158,14 @@ const UserDropdown = ({isDarkHeader, variant = "default"}:UserDropdownProps) => 
         },
         {
             key: "mymessage",
-            label: <span className="text-gray-700">我的消息</span>,
+            label: (
+                <span className="text-gray-700 flex items-center justify-between gap-2">
+                    <span>我的消息</span>
+                    {hasUnreadMessage && (
+                        <span className="inline-block w-2 h-2 rounded-full bg-[#964328]" />
+                    )}
+                </span>
+            ),
             icon: <MessageOutlined className="text-gray-600 text-base" />,
             className: "!py-2.2 !my-1 !px-4 !text-sm",
         },
@@ -235,16 +273,20 @@ const UserDropdown = ({isDarkHeader, variant = "default"}:UserDropdownProps) => 
                 className: "w-66 p-2 rounded-xl border-none shadow-lg bg-[#fcfbf9]/95 backdrop-blur-md [&_.ant-dropdown-menu-item-danger_.ant-dropdown-menu-item-icon]:!text-[#dc2626] [&_.ant-dropdown-menu-item-danger]:!text-[#dc2626]",
             }}
             placement="bottomRight"
-            onOpenChange={setOpen}
+            onOpenChange={(nextOpen) => {
+                setOpen(nextOpen);
+                // 每次打开菜单刷新未读红点（消息页操作后即时反映）
+                if (nextOpen) refreshUnreadDot();
+            }}
         >
             <div className="flex items-center gap-2 cursor-pointer select-none py-1 px-2">
-                <Avatar
+                <UserAvatar
                     size={32}
-                    src={userInfo?.avatarUrl || undefined} 
-                    className="!bg-[#FBEDE8] !text-[#6F3220] flex-shrink-0 font-semibold"
-                >
-                    {!userInfo?.avatarUrl && firstChar}
-                </Avatar>
+                    src={userInfo?.avatarUrl}
+                    account={userInfo?.userAccount}
+                    name={userInfo?.username}
+                    className="flex-shrink-0 font-semibold"
+                />
                 <span
                     className={`text-base font-normal leading-none flex items-center transition-colors duration-300 ${
                         isDarkHeader ? "text-white" : "text-[#454B58]"

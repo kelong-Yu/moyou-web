@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { App, Avatar, Button, Empty } from "antd";
+import { App, Button, Empty } from "antd";
 import {
     EyeOutlined,
     HeartOutlined,
@@ -25,6 +25,7 @@ import {
 import { getMyFavoriteCopybooks, getMyFavoriteCharacters } from "../../services/copybook/api";
 import { unfollowCalligrapher } from "../../services/calligrapher/api";
 import MoyouLoading from "../../components/MoyouLoading";
+import UserAvatar from "../../components/UserAvatar";
 import { usePageMeta } from "../../hooks/usePageMeta";
 import CharacterFavoriteCard from "./components/CharacterFavoriteCard";
 import bgImg from "../../assets/lantingxu.jpg";
@@ -321,12 +322,6 @@ const UserProfile = () => {
         ready: !!profile,
     });
 
-    /** 头像降级字符 */
-    const avatarChar =
-        profile?.username?.[0]?.toUpperCase() ||
-        profile?.userAccount?.[0]?.toUpperCase() ||
-        "墨";
-
     /** 性别展示：1-男 2-女，其余按未设置处理 */
     const genderText =
         profile?.gender === 1
@@ -586,13 +581,13 @@ const UserProfile = () => {
                             {/* 第一行：头像 + 姓名 + 身份标签 + 操作按钮 */}
                             <div className="flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-5 sm:gap-6">
-                                    <Avatar
+                                    <UserAvatar
                                         size={88}
-                                        src={profile.avatarUrl || undefined}
-                                        className="!bg-[#FBEDE8] !text-[#6F3220] shrink-0 font-semibold border-2 border-amber-500/40 shadow-xl"
-                                    >
-                                        {!profile.avatarUrl && avatarChar}
-                                    </Avatar>
+                                        src={profile.avatarUrl}
+                                        account={profile.userAccount}
+                                        name={profile.username}
+                                        className="shrink-0 font-semibold border-2 border-amber-500/40 shadow-xl"
+                                    />
 
                                     <div className="flex flex-col items-start gap-2">
                                         <h1 className="text-2xl sm:text-3xl font-bold tracking-wide text-amber-50">
@@ -908,14 +903,13 @@ const UserProfile = () => {
                                             key={`${item.type}-${item.targetId}`}
                                             className="group flex items-center gap-3 py-4 border-b border-[#964328]/15 transition-colors hover:bg-black/5 sm:gap-4 px-2"
                                         >
-                                            <Avatar
+                                            <UserAvatar
                                                 size={48}
-                                                src={item.avatarUrl || undefined}
-                                                className="!bg-[#FBEDE8] !text-[#6F3220] shrink-0 font-semibold cursor-pointer"
+                                                src={item.avatarUrl}
+                                                name={item.name}
+                                                className="shrink-0 font-semibold cursor-pointer"
                                                 onClick={() => navigate(navigatePath)}
-                                            >
-                                                {(item.name || "?")[0]?.toUpperCase()}
-                                            </Avatar>
+                                            />
 
                                             <div
                                                 className="min-w-0 flex-1 cursor-pointer"
@@ -975,16 +969,14 @@ const UserProfile = () => {
                                         key={user.id}
                                         className="group flex items-center gap-3 py-4 border-b border-[#964328]/15 transition-colors hover:bg-black/5 sm:gap-4 px-2"
                                     >
-                                        <Avatar
+                                        <UserAvatar
                                             size={48}
-                                            src={user.avatarUrl || undefined}
-                                            className="!bg-[#FBEDE8] !text-[#6F3220] shrink-0 font-semibold cursor-pointer"
+                                            src={user.avatarUrl}
+                                            account={user.userAccount}
+                                            name={user.username}
+                                            className="shrink-0 font-semibold cursor-pointer"
                                             onClick={() => navigate(`/user/${user.id}`)}
-                                        >
-                                            {(user.username ||
-                                                user.userAccount ||
-                                                "?")[0]?.toUpperCase()}
-                                        </Avatar>
+                                        />
 
                                         <div
                                             className="min-w-0 flex-1 cursor-pointer"

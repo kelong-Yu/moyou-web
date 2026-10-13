@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { App, Avatar, Button, Input, Select, Spin } from "antd";
+import { App, Button, Input, Select, Spin } from "antd";
 import { EditOutlined,KeyOutlined, } from "@ant-design/icons";
+import UserAvatar from "../../components/UserAvatar";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../../stores";
 import { setUserInfo } from "../../stores/slices/userSlice";
@@ -195,15 +196,13 @@ const ProfileSettings = () => {
                 <>
                     {/* ---------- 资料块：头像 + 基本信息 ---------- */}
                     <div className="rounded-xl bg-[#F7F0E2]/60 border border-[#964328]/10 p-5 flex items-center gap-5">
-                        <Avatar
+                        <UserAvatar
                             size={64}
-                            src={profile?.avatarUrl || undefined}
-                            className="!bg-[#FBEDE8] !text-[#6F3220] shrink-0 font-semibold"
-                        >
-                            {(profile?.username ||
-                                profile?.userAccount ||
-                                "墨")[0]?.toUpperCase()}
-                        </Avatar>
+                            src={profile?.avatarUrl}
+                            account={profile?.userAccount}
+                            name={profile?.username}
+                            className="shrink-0 font-semibold"
+                        />
 
                         <div className="min-w-0 space-y-1">
                             <p className="text-lg font-bold text-gray-900 leading-tight">

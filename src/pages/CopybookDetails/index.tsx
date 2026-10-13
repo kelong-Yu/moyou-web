@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { App } from "antd";
 import HeroContent from "../../components/HeroContent";
 import CalligrapherDetailDrawer from "../../components/CalligrapherDetailDrawer";
@@ -38,6 +38,10 @@ const CopybookDetails = () => {
     const { id } = useParams();
     const {message} = App.useApp();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+
+    // 从「我的消息 · 评论互动」跳转时携带 ?commentId=，用于评论区定位
+    const focusCommentId = Number(searchParams.get("commentId")) || undefined;
     const [detail, setDetail] = useState<API.WebCopybookDetailResponse>();
     const [recommendList, setRecommendList] = useState<API.WebCopybookRecommendResponse[]>([]);
 
@@ -336,6 +340,7 @@ const CopybookDetails = () => {
 
                     <CommentSection
                         copybookId={detail?.id}
+                        focusCommentId={focusCommentId}
                         onCommentCreated={async () => {
                             if (detail?.id) {
                                 await refreshInteraction(detail.id);

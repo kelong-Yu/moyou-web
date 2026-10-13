@@ -12,7 +12,7 @@ import {
     UserOutlined,
     RightOutlined
 } from "@ant-design/icons";
-import { Spin, Empty, message, Avatar } from "antd";
+import { Spin, Empty, message } from "antd";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../stores";
 import {
@@ -24,6 +24,7 @@ import {
 } from "../../services/calligrapher/api";
 import { followUser, unfollowUser } from "../../services/user/api";
 import MoyouLoading from "../../components/MoyouLoading";
+import UserAvatar from "../../components/UserAvatar";
 import { usePageMeta } from "../../hooks/usePageMeta";
 import bgImg from "../../assets/lantingxu.jpg";
 
@@ -528,14 +529,14 @@ const ArticleWorks = () => {
                                         key={fan.id}
                                         className="group flex items-center gap-3 py-4 border-b border-[#964328]/15 transition-colors hover:bg-black/5 sm:gap-4 px-2"
                                     >
-                                        <Avatar
+                                        <UserAvatar
                                             size={52}
-                                            src={fan.avatarUrl || undefined}
+                                            src={fan.avatarUrl}
+                                            account={fan.userAccount}
+                                            name={fan.username}
                                             onClick={() => navigate(`/user/${fan.id}`)}
-                                            className="!bg-[#FBEDE8] !text-[#6F3220] shrink-0 font-semibold cursor-pointer border border-[#C7A16A]/50 shadow-sm"
-                                        >
-                                            {(fan.username || fan.userAccount || "?")[0]?.toUpperCase()}
-                                        </Avatar>
+                                            className="shrink-0 font-semibold cursor-pointer border border-[#C7A16A]/50 shadow-sm"
+                                        />
 
                                         <div
                                             className="min-w-0 flex-1 cursor-pointer"

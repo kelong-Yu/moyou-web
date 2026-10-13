@@ -1,5 +1,6 @@
-import { App, Avatar, Button, Empty, Input, Popconfirm, Spin } from "antd";
+import { App, Button, Empty, Input, Popconfirm, Spin } from "antd";
 import { MessageOutlined, SendOutlined, DownOutlined, UpOutlined, EditOutlined } from "@ant-design/icons";
+import UserAvatar from "../UserAvatar";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -9,6 +10,11 @@ import { createCopybookComment, deleteCopybookComment, getCopybookComments } fro
 interface CommentSectionProps {
     copybookId?: number;
     onCommentCreated?: () => void | Promise<void>;
+    /**
+     * 需要定位并高亮的评论ID
+     * （从「我的消息 · 评论互动」跳转详情页时通过 ?commentId= 传入）
+     */
+    focusCommentId?: number;
 }
 
 const formatTime = (value?: string) => {
@@ -19,7 +25,7 @@ const formatTime = (value?: string) => {
         : date.toLocaleString("zh-CN", { hour12: false, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 };
 
-const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCreated }) => {
+const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCreated, focusCommentId }) => {
     const { message } = App.useApp();
     const navigate = useNavigate();
     const currentUser = useSelector((state: RootState) => state.user.userInfo);
@@ -33,6 +39,9 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
     
     // 新增：默认折叠评论输入框
     const [isCollapsed, setIsCollapsed] = useState(true);
+
+    /** 消息跳转定位时短暂高亮的评论ID */
+    const [highlightedId, setHighlightedId] = useState<number | null>(null);
 
     const loadComments = async (id: number) => {
         const res = await getCopybookComments(id, { current: 1, pageSize: 20 });
@@ -67,6 +76,25 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
     }, [copybookId]);
 
     const loading = !copybookId || loadedCopybookId !== copybookId;
+
+    /**
+     * 消息跳转定位：评论加载完成后，滚动到目标回复并短暂高亮。
+     * 依赖 comments/loading，确保 DOM 渲染出锚点后再执行。
+     */
+    useEffect(() => {
+        if (!focusCommentId || loading) return;
+
+        const timer = window.setTimeout(() => {
+            const el = document.getElementById(`copybook-comment-${focusCommentId}`);
+            if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                setHighlightedId(focusCommentId);
+                window.setTimeout(() => setHighlightedId(null), 3000);
+            }
+        }, 200);
+
+        return () => window.clearTimeout(timer);
+    }, [focusCommentId, loading, comments]);
 
     const handleSubmit = async () => {
         if (!copybookId || submitting) return;
@@ -138,11 +166,19 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
     };
 
     const renderComment = (comment: API.WebCopybookCommentResponse, isReply = false) => (
-        <article key={comment.id} className={isReply ? "mt-4 pl-4 border-l-2 border-[#964328]/15" : "py-5 border-b border-amber-900/10"}>
+        <article
+            key={comment.id}
+            id={`copybook-comment-${comment.id}`}
+            className={`scroll-mt-24 rounded-lg transition-colors duration-500 ${
+                highlightedId === comment.id ? "bg-[#964328]/10 ring-1 ring-[#964328]/40" : ""
+            } ${isReply ? "mt-4 pl-4 border-l-2 border-[#964328]/15" : "py-5 border-b border-amber-900/10"}`}
+        >
             <div className="flex gap-3">
-                <Avatar src={comment.avatarUrl} className="shrink-0 bg-[#964328]">
-                    {comment.username?.slice(0, 1)}
-                </Avatar>
+                <UserAvatar
+                    src={comment.avatarUrl}
+                    name={comment.username}
+                    className="shrink-0"
+                />
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 text-sm">
                         <span className="font-semibold text-[#70311e]">{comment.username}</span>
