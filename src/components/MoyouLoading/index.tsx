@@ -17,6 +17,14 @@ export interface MoyouLoadingProps {
      * 组件默认铺满父容器（width/height 100%）。
      */
     className?: string;
+
+    /**
+     * 当前背景是否暗沉
+     *
+     * true：透明底 + 卡其亮色笔画与文案（深色 Hero、大图查看器等），
+     * false（默认）：宣纸底色 + 墨黑渐入主题色笔画。
+     */
+    dark?: boolean;
 }
 
 /**
@@ -24,23 +32,25 @@ export interface MoyouLoadingProps {
  *
  * 水墨笔触动画：SVG 圆相笔画由墨黑渐入主题色 #964328，
  * 循环"起笔 — 行笔 — 收笔"，中心墨点同步呼吸；
- * 下方展示「墨友」品牌名与加载提示。
+ * 下方展示加载提示。
  *
  * - 纯 CSS 动画，无第三方动画依赖；
  * - 支持 prefers-reduced-motion（减少动态时静态展示）；
  * - 无障碍：role="status" + aria-live="polite"；
- * - 加载结束由调用方条件渲染移除，组件内部不管理定时器。
+ * - 加载结束由调用方条件渲染移除，组件内部不管理定时器；
+ * - dark 变体适配暗沉背景：笔画与文案改用卡其亮色系、去掉宣纸底。
  */
 const MoyouLoading = ({
     tip = "正在加载……",
     className = "",
+    dark = false,
 }: MoyouLoadingProps) => {
     // 渐变 id 按实例隔离，避免同页多实例互相干扰
     const gradientId = useId();
 
     return (
         <div
-            className={`moyou-loading ${className}`.trim()}
+            className={`moyou-loading${dark ? " moyou-loading--dark" : ""} ${className}`.trim()}
             role="status"
             aria-live="polite"
         >
@@ -52,12 +62,18 @@ const MoyouLoading = ({
             >
                 <defs>
                     <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0" stopColor="#1A1815" />
-                        <stop offset="1" stopColor="#964328" />
+                        <stop
+                            offset="0"
+                            stopColor={dark ? "#EAD9BC" : "#1A1815"}
+                        />
+                        <stop
+                            offset="1"
+                            stopColor={dark ? "#C9A876" : "#964328"}
+                        />
                     </linearGradient>
                 </defs>
 
-                {/* 行笔弧线：墨黑 → 主题色 */}
+                {/* 行笔弧线：墨黑 → 主题色（dark：浅卡其 → 卡其） */}
                 <circle
                     className="moyou-loading__arc"
                     cx="32"
@@ -75,7 +91,7 @@ const MoyouLoading = ({
                     cx="32"
                     cy="32"
                     r="3.5"
-                    fill="#964328"
+                    fill={dark ? "#C9A876" : "#964328"}
                 />
             </svg>
 

@@ -561,12 +561,14 @@ const UserProfile = () => {
 
                 <div className="relative z-10 max-w-310 mx-auto px-4 sm:px-6 lg:px-8">
                     {authChecking || profileLoading ? (
-                        // 统一自定义 Loading：米色纸片浮在深色 Hero 上
+                        // 深色 Hero 使用 MoyouLoading 的 dark 变体：
+                        // 卡其亮色笔画与文案，无米色底纸片
                         <div className="py-12 flex justify-center">
-                            <div className="rounded-xl bg-[#FAF6ED]/90 shadow-sm overflow-hidden">
-                                <div className="w-64 h-40">
-                                    <MoyouLoading tip="正在加载用户资料……" />
-                                </div>
+                            <div className="w-64 h-40">
+                                <MoyouLoading
+                                    dark
+                                    tip="正在加载用户资料……"
+                                />
                             </div>
                         </div>
                     ) : profileError ? (

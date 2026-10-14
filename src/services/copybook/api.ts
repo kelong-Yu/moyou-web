@@ -175,6 +175,27 @@ export async function getPractiseInit(
 }
 
 /**
+ * 临帖页单页 MinIO 原文件高清大图地址
+ *
+ * GET /api/web/copybook/practise/{copybookId}/page/{pageNumber}/full
+ *
+ * 直接返回图片字节（不做缩略压缩），
+ * 供"点击查看大图"的 <img> 地址使用：
+ * 多图组返回该页原始上传文件，PDF/历史数据返回整页高清预览。
+ *
+ * 与缩略图同样走后端接口而非 MinIO 预签名地址，
+ * 不受临时地址有效期影响；
+ * 返回值再拼 "/api" 前缀是为配合开发代理的 /api 重写，
+ * 与临帖页现有 thumbnailUrl 用法一致。
+ */
+export function getPractisePageFullImageUrl(
+    copybookId: number,
+    pageNumber: number
+): string {
+    return `/api/api/web/copybook/practise/${copybookId}/page/${pageNumber}/full`;
+}
+
+/**
  * 单字临帖页面已裁剪单字分页查询
  *
  * GET /api/web/copybook/practise/{copybookId}/characters

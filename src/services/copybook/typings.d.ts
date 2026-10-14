@@ -274,6 +274,16 @@ declare namespace API {
     calligrapherAvatar?: string;
 
     /**
+     * 朝代名称（大图查看器单字卡片展示用，可能为空）
+     */
+    dynastyName?: string;
+
+    /**
+     * 书法风格（大图查看器单字卡片展示用，可能为空）
+     */
+    style?: string;
+
+    /**
      * 原始文件类型：PDF / IMAGE
      */
     fileType?: string;

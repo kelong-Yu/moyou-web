@@ -8,11 +8,13 @@ import {
     EyeOutlined,
     FileImageOutlined,
     SearchOutlined,
-    RightOutlined
+    RightOutlined,
+    ZoomInOutlined
 } from "@ant-design/icons";
 import {
     getPractiseInit,
     getPractiseCharacters,
+    getPractisePageFullImageUrl,
     getHotCopybooks,
     getCharacterFavoriteStatus,
     favoriteCharacter,
@@ -23,6 +25,8 @@ import type { RootState } from "../../stores";
 import MoyouLoading from "../../components/MoyouLoading";
 import { usePageMeta } from "../../hooks/usePageMeta";
 import PractiseToolbox from "./components/PractiseToolbox";
+import PractiseImageLightbox from "./components/PractiseImageLightbox";
+import CharacterFavoriteCard from "../UserProfile/components/CharacterFavoriteCard";
 
 /**
  * 田字格图标
@@ -104,6 +108,24 @@ const CopybookPractise = () => {
     /** 当前选中的单字（保存完整对象，跨页切换时左侧大图不丢） */
     const [selectedCharacter, setSelectedCharacter] =
         useState<API.WebPractiseCharacter>();
+
+    /**
+     * 全屏大图查看器（当前页内打开，不新开窗口、不跳转路由）
+     *
+     * 两种模式互斥、内容彼此独立：
+     * - page      ：只浏览碑帖原文件各页 MinIO 高清大图
+     * - character ：只浏览裁切单字卡片
+     */
+    const [lightbox, setLightbox] = useState<
+        | { mode: "page"; index: number }
+        | { mode: "character"; index: number }
+        | null
+    >(null);
+
+    /** 查看器高清大图加载状态（page 模式） */
+    const [lightboxImageStatus, setLightboxImageStatus] = useState<
+        "loading" | "loaded" | "error"
+    >("loading");
 
 
     /** 临帖工具箱：功能暂时占位 */
@@ -384,6 +406,100 @@ const CopybookPractise = () => {
         setSelectedCharacter(character);
     };
 
+    // ==================== 全屏大图查看器 ====================
+    /** 查看器当前条目（page 模式为分页预览，character 模式为单字记录） */
+    const lightboxPreview =
+        lightbox?.mode === "page" ? pagePreviews[lightbox.index] : undefined;
+
+    const lightboxCharacter =
+        lightbox?.mode === "character"
+            ? characterRecords[lightbox.index]
+            : undefined;
+
+    /** page 模式当前页码（接口与展示均以后端页码为准） */
+    const lightboxPageNumber =
+        lightbox?.mode === "page"
+            ? lightboxPreview?.pageNumber ?? lightbox.index + 1
+            : undefined;
+
+    /** 碑帖原文件高清大图后端接口地址（MinIO 原文件，非压缩缩略图） */
+    const lightboxFullSrc =
+        lightbox?.mode === "page" && copybookId && lightboxPageNumber
+            ? getPractisePageFullImageUrl(copybookId, lightboxPageNumber)
+            : undefined;
+
+    // 切换页码 / 重新打开查看器时，高清大图重新进入加载态
+    useEffect(() => {
+        setLightboxImageStatus(
+            lightbox?.mode === "page" ? "loading" : "loaded"
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lightboxFullSrc, lightbox?.mode]);
+
+    /**
+     * 预加载相邻图片（上一张 / 下一张），
+     * 减少查看器内切换时的等待。
+     */
+    useEffect(() => {
+        if (!lightbox || !copybookId) return;
+
+        const preload = (url?: string) => {
+            if (!url) return;
+            const image = new Image();
+            image.src = url;
+        };
+
+        if (lightbox.mode === "page") {
+            [lightbox.index - 1, lightbox.index + 1].forEach((i) => {
+                const preview = pagePreviews[i];
+                if (!preview) return;
+                preload(
+                    getPractisePageFullImageUrl(
+                        copybookId,
+                        preview.pageNumber ?? i + 1
+                    )
+                );
+            });
+        } else {
+            [lightbox.index - 1, lightbox.index + 1].forEach((i) => {
+                preload(characterRecords[i]?.imageUrl);
+            });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lightbox?.mode, lightbox?.index, copybookId]);
+
+    /** 点击碑帖分页缩略图：打开原文件高清大图查看器 */
+    const handleOpenPageLightbox = (index: number) => {
+        setLightbox({ mode: "page", index });
+    };
+
+    /** 点击单字大图区域：打开单字卡片查看器（定位到当前选中单字） */
+    const handleOpenCharacterLightbox = () => {
+        if (!selectedCharacter?.imageUrl) return;
+
+        const index = characterRecords.findIndex(
+            (item) => item.id === selectedCharacter.id
+        );
+
+        setLightbox({ mode: "character", index: Math.max(0, index) });
+    };
+
+    const handleCloseLightbox = () => setLightbox(null);
+
+    /** 查看器切换上一张 / 下一张；单字模式同步更新页面选中单字 */
+    const handleLightboxIndexChange = (nextIndex: number) => {
+        if (!lightbox) return;
+
+        setLightbox({ ...lightbox, index: nextIndex });
+
+        if (lightbox.mode === "character") {
+            const next = characterRecords[nextIndex];
+            if (next) {
+                setSelectedCharacter(next);
+            }
+        }
+    };
+
     /** 中间列表翻页 */
     const handleMiddlePageChange = (page: number) => {
         setMiddlePage(page);
@@ -566,16 +682,19 @@ const CopybookPractise = () => {
                                     : preview.url;
 
                                 return (
-                                    <div
+                                    <button
+                                        type="button"
                                         key={preview.thumbnailUrl || preview.url || index}
-                                        className="relative h-full shrink-0 rounded overflow-hidden"
-                                        title={`第 ${preview.pageNumber ?? index + 1} 页`}
+                                        onClick={() => handleOpenPageLightbox(index)}
+                                        className="group relative block h-full shrink-0 border-0 bg-transparent p-0 cursor-zoom-in"
+                                        title={`第 ${preview.pageNumber ?? index + 1} 页 · 点击查看高清大图`}
                                     >
                                         {src ? (
                                             <img
                                                 src={src}
                                                 alt={`第 ${preview.pageNumber ?? index + 1} 页`}
-                                                className="block h-full w-auto max-w-none object-contain"
+                                                draggable={false}
+                                                className="block h-full w-auto max-w-none object-contain rounded transition-transform duration-300 ease-out group-hover:scale-110"
                                                 onLoad={() => markThumbLoaded(src)}
                                                 onError={(e) => {
                                                     // 加载失败同样计入进度，避免 Loading 卡住
@@ -585,12 +704,12 @@ const CopybookPractise = () => {
                                                 }}
                                             />
                                         ) : (
-                                            <div className="h-full w-16 bg-[#F5EBDD]" />
+                                            <div className="h-full w-16 bg-[#F5EBDD] rounded" />
                                         )}
                                         <span className="absolute bottom-0 right-0 px-1 text-[10px] leading-4 bg-black/45 text-white rounded-tl">
                                             {preview.pageNumber ?? index + 1}
                                         </span>
-                                    </div>
+                                    </button>
                                 );
                             })}
                         </div>
@@ -731,8 +850,16 @@ const CopybookPractise = () => {
                             </Tooltip>
                         </div>
 
-                        {/* 单字大图（正方形区域，高度与右侧单字列表区域等高） */}
-                        <div className="flex-1 min-w-0 rounded-xl border border-[#964328]/15 bg-white/75 shadow-sm flex items-center justify-center overflow-hidden">
+                        {/* 单字大图（正方形区域，高度与右侧单字列表区域等高）
+                            点击打开全屏单字卡片查看器，悬浮图片轻微放大 */}
+                        <div
+                            onClick={handleOpenCharacterLightbox}
+                            className={`group flex-1 min-w-0 rounded-xl border border-[#964328]/15 bg-white/75 shadow-sm flex items-center justify-center overflow-hidden transition-shadow ${
+                                selectedCharacter?.imageUrl
+                                    ? "cursor-zoom-in hover:ring-2 hover:ring-[#964328]/35"
+                                    : ""
+                            }`}
+                        >
                             <div className="relative aspect-square w-full max-w-full lg:w-auto lg:h-[calc(100%-16px)] my-2">
                                 {selectedCharacter?.imageUrl ? (
                                     <>
@@ -742,7 +869,8 @@ const CopybookPractise = () => {
                                                 selectedCharacter.characterText ||
                                                 "单字"
                                             }
-                                            className={`w-full h-full object-contain transition-opacity ${
+                                            draggable={false}
+                                            className={`w-full h-full object-contain transition-[opacity,transform] duration-300 ease-out group-hover:scale-105 ${
                                                 bigImageLoading ? "opacity-0" : "opacity-100"
                                             }`}
                                             onLoad={() =>
@@ -780,6 +908,12 @@ const CopybookPractise = () => {
                                                     : ""}
                                             </span>
                                         )}
+
+                                        {/* 悬浮提示：点击查看大图 */}
+                                        <span className="absolute bottom-2 right-2 z-20 flex items-center gap-1 px-2 py-0.5 text-xs bg-[#1A1815]/75 text-amber-100 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                            <ZoomInOutlined />
+                                            查看大图
+                                        </span>
                                     </>
                                 ) : charactersLoading ? (
                                     // 初次加载，尚无选中单字
@@ -943,6 +1077,90 @@ const CopybookPractise = () => {
 </div>
                 </div>
             </main>
+
+            {/* ==================== 全屏大图查看器 ==================== */}
+            {/* 当前页内打开（不新开浏览器窗口、不跳转路由），
+                page 模式只展示碑帖原文件高清大图，
+                character 模式只展示裁切单字卡片，两种模式内容互不混排 */}
+            {lightbox && (
+                <PractiseImageLightbox
+                    total={
+                        lightbox.mode === "page"
+                            ? pagePreviews.length
+                            : characterRecords.length
+                    }
+                    index={lightbox.index}
+                    onIndexChange={handleLightboxIndexChange}
+                    onClose={handleCloseLightbox}
+                    heading={
+                        lightbox.mode === "page"
+                            ? init?.copybookName
+                                ? `《${init.copybookName}》原帖`
+                                : "碑帖原帖"
+                            : init?.copybookName
+                              ? `《${init.copybookName}》单字`
+                              : "碑帖单字"
+                    }
+                    label={
+                        lightbox.mode === "page"
+                            ? `第 ${lightboxPageNumber ?? lightbox.index + 1} 页 · ${lightbox.index + 1}/${pagePreviews.length}`
+                            : lightboxCharacter?.characterText
+                              ? `${lightboxCharacter.characterText} · ${lightbox.index + 1}/${characterRecords.length}`
+                              : `${lightbox.index + 1}/${characterRecords.length}`
+                    }
+                    loading={
+                        lightbox.mode === "page" &&
+                        lightboxImageStatus === "loading"
+                    }
+                    error={
+                        lightbox.mode === "page" &&
+                        lightboxImageStatus === "error"
+                            ? "高清大图加载失败，请稍后重试"
+                            : null
+                    }
+                >
+                    {lightbox.mode === "page" ? (
+                        lightboxFullSrc && (
+                            <img
+                                key={lightboxFullSrc}
+                                src={lightboxFullSrc}
+                                alt={`第 ${lightboxPageNumber ?? lightbox.index + 1} 页高清大图`}
+                                draggable={false}
+                                className="max-h-full max-w-full object-contain rounded shadow-2xl pointer-events-auto"
+                                onLoad={() =>
+                                    setLightboxImageStatus("loaded")
+                                }
+                                onError={() =>
+                                    setLightboxImageStatus("error")
+                                }
+                            />
+                        )
+                    ) : lightboxCharacter ? (
+                        // 单字卡片：完全复用 CharacterFavoriteCard 结构样式，
+                        // 点击不跳转，缩放变换作用于整张卡片；
+                        // pointer-events-auto 在缩放层禁用指针后恢复卡片自身交互
+                        <div className="pointer-events-auto">
+                            <CharacterFavoriteCard
+                                item={{
+                                    characterId: lightboxCharacter.id,
+                                    characterText:
+                                        lightboxCharacter.characterText,
+                                    imageUrl:
+                                        lightboxCharacter.imageUrl,
+                                    copybookId,
+                                    copybookName: init?.copybookName,
+                                    calligrapherName:
+                                        init?.calligrapherName,
+                                    dynastyName: init?.dynastyName,
+                                    style: init?.style,
+                                }}
+                                onClick={() => undefined}
+                                sizeClassName="w-80 h-120"
+                            />
+                        </div>
+                    ) : null}
+                </PractiseImageLightbox>
+            )}
         </div>
     );
 };
