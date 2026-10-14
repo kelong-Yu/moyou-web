@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { App } from "antd";
+import { useSelector } from "react-redux";
+import type { RootState } from "../../stores";
 import HeroContent from "../../components/HeroContent";
 import CalligrapherDetailDrawer from "../../components/CalligrapherDetailDrawer";
 import { getCopybookDetail, getRecommendCopybook,favoriteCopybook,unFavoriteCopybook,getCopybookInteraction,likeCopybook,unlikeCopybook } from "../../services/copybook/api";
@@ -39,6 +41,9 @@ const CopybookDetails = () => {
     const {message} = App.useApp();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+
+    // 当前登录用户（单字临帖入口需登录）
+    const userInfo = useSelector((state: RootState) => state.user.userInfo);
 
     // 从「我的消息 · 评论互动」跳转时携带 ?commentId=，用于评论区定位
     const focusCommentId = Number(searchParams.get("commentId")) || undefined;
@@ -459,10 +464,31 @@ const CopybookDetails = () => {
                         <div className="flex gap-3 mt-4">            
                             <button
                                 onClick={() => {
-                                    if (detail?.id) {
-                                        // 单字临帖页面：新浏览器窗口打开
-                                        window.open(`/copybook/${detail.id}/practise`, "_blank");
+                                    if (!detail?.id) return;
+
+                                    // 单字临帖页仅登录用户可用：
+                                    // 未登录先去登录页并带回临帖地址，
+                                    // 登录成功后自动返回（路由处另有 RequireLogin 兜底）
+                                    if (
+                                        !userInfo ||
+                                        !localStorage.getItem("token")
+                                    ) {
+                                        message.info(
+                                            "请先登录后再使用单字临帖"
+                                        );
+                                        navigate(
+                                            `/login?redirect=${encodeURIComponent(
+                                                `/copybook/${detail.id}/practise`
+                                            )}`
+                                        );
+                                        return;
                                     }
+
+                                    // 单字临帖页面：新浏览器窗口打开
+                                    window.open(
+                                        `/copybook/${detail.id}/practise`,
+                                        "_blank"
+                                    );
                                 }}
                                 className="flex-1 py-3 rounded-lg bg-[#964328] text-white hover:bg-[#b74e2b] transition cursor-pointer"
                             >

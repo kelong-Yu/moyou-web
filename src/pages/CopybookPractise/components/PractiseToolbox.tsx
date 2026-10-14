@@ -5,18 +5,19 @@ import {
     RobotOutlined,
 } from "@ant-design/icons";
 
+
 export interface PractiseToolboxProps {
     /**
      * 点击某个工具时的回调
      *
-     * @param toolName 工具名称（释文对照 / 在线练习 / 笔画拆解 / 问问 AI）
+     * @param toolName 工具名称（释文对照 / 在线练习 / 笔画拆解 / 问问 AI / 手势翻页）
      */
     onToolClick: (toolName: string) => void;
 
     /**
      * 当前激活（高亮）的工具名称
      *
-     * 例如"释文对照"展开时高亮对应按钮
+     * 例如"释文对照"展开、"手势翻页"开启时高亮对应按钮
      */
     activeTool?: string;
 }
@@ -27,6 +28,7 @@ const TOOLS = [
     { name: "在线练习", icon: <EditOutlined className="text-xl" /> },
     { name: "笔画拆解", icon: <PartitionOutlined className="text-xl" /> },
     { name: "问问 AI", icon: <RobotOutlined className="text-xl" /> },
+
 ];
 
 /**
@@ -61,7 +63,7 @@ const PractiseToolbox = ({
                             }`}
                         >
                             {tool.icon}
-                            <span className="text-[11px] whitespace-nowrap">
+                            <span className="text-[10px] whitespace-nowrap">
                                 {tool.name}
                             </span>
                         </button>

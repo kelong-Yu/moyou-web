@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Form, Input, Button, App } from "antd";
 import {
   UserOutlined,
@@ -9,9 +9,10 @@ import {
   CheckOutlined,
 } from "@ant-design/icons";
 import { login, currentUser } from "../../services/user/api";
-import { Link, useNavigate } from "react-router-dom";
-import { useDispatch } from "react-redux";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import { setUserInfo } from "../../stores/slices/userSlice";
+import type { RootState } from "../../stores";
 import logo from "../../assets/moyoulogo.png";
 import bg from "../../assets/lantingxu.jpg";
 import { usePageMeta } from "../../hooks/usePageMeta";
@@ -23,6 +24,58 @@ const Login = () => {
   // 页面标题（登录页不记录浏览历史）
   usePageMeta({ title: "登录", record: false });
   const dispatch = useDispatch();
+  const [searchParams] = useSearchParams();
+
+  // 当前登录会话（Redux，由 AuthProvider 启动时恢复）
+  const userInfo = useSelector((state: RootState) => state.user.userInfo);
+
+  /**
+   * 登录成功 / 已登录用户访问登录页时的去向：
+   * 优先回跳 ?redirect= 携带的原页面
+   * （仅允许站内相对路径，防开放重定向），否则回首页
+   */
+  const goToTarget = () => {
+    const redirect = searchParams.get("redirect") || "/";
+    const safe =
+      redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : "/";
+    navigate(safe, { replace: true });
+  };
+
+  // 已登录用户不应停留在登录页：
+  // Redux 已有用户立即跳走（含会话稍后才恢复完成的情况）
+  useEffect(() => {
+    if (userInfo) {
+      goToTarget();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userInfo]);
+
+  // 本地有 token 但 Redux 未恢复（刷新 / 新标签直接输入 /login）：
+  // 向服务端确认会话，有效则直接跳走，无效正常展示登录表单
+  useEffect(() => {
+    if (userInfo || !localStorage.getItem("token")) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = (await currentUser()) as API.Result<API.CurrentUser>;
+        if (cancelled) return;
+
+        if (res.code === 200 && res.data) {
+          dispatch(setUserInfo(res.data));
+          goToTarget();
+        }
+      } catch {
+        // 校验失败按未登录处理，正常展示登录表单
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 真人验证状态
   const [isVerified, setIsVerified] = useState(false);
@@ -35,22 +88,23 @@ const Login = () => {
     }
 
     try {
-      const res: any = await login(values);
+      const res = (await login(values)) as API.Result<string>;
       if (res.code === 200) {
         //1、保存JWT
         localStorage.setItem("token", res.data);
         //2、获取当前用户
-        const userRes: any = await currentUser();
+        const userRes = (await currentUser()) as API.Result<API.CurrentUser>;
         if (userRes.code === 200) {
           //3、保存redux
           dispatch(setUserInfo(userRes.data));
         }
         message.success("登录成功");
-        navigate("/");
+        // 有 redirect 参数（如被登录守卫拦下的单字临帖页）则回原页面
+        goToTarget();
         return;
       }
       message.error(res.message || "登录失败");
-    } catch (e) {
+    } catch {
       message.error("登录失败");
     }
   };

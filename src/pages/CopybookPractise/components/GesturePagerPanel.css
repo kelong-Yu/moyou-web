@@ -1,0 +1,31 @@
+/* =========================================================
+   手势翻页状态面板样式
+
+   目前仅包含挥手成功反馈的闪现动画：
+   淡入 → 停留 → 淡出，结束后保持隐藏（forwards），
+   下一次挥手由 React 以时间戳为 key 重挂载元素重播动画。
+   ========================================================= */
+
+.gesture-swipe-flash {
+    animation: gesture-swipe-flash 0.9s ease-out forwards;
+}
+
+@keyframes gesture-swipe-flash {
+    0% {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    12% {
+        opacity: 1;
+        transform: none;
+    }
+
+    75% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}

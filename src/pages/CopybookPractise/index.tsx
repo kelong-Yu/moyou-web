@@ -5,12 +5,12 @@ import {
     HeartFilled,
     HeartOutlined,
     DownloadOutlined,
-    EyeOutlined,
     FileImageOutlined,
     SearchOutlined,
     RightOutlined,
     ZoomInOutlined
 } from "@ant-design/icons";
+import { Hand } from "lucide-react";
 import {
     getPractiseInit,
     getPractiseCharacters,
@@ -24,8 +24,10 @@ import { useSelector } from "react-redux";
 import type { RootState } from "../../stores";
 import MoyouLoading from "../../components/MoyouLoading";
 import { usePageMeta } from "../../hooks/usePageMeta";
+import { useHandWavePager } from "../../hooks/useHandWavePager";
 import PractiseToolbox from "./components/PractiseToolbox";
 import PractiseImageLightbox from "./components/PractiseImageLightbox";
+import GesturePagerPanel from "./components/GesturePagerPanel";
 import CharacterFavoriteCard from "../UserProfile/components/CharacterFavoriteCard";
 
 /**
@@ -122,10 +124,15 @@ const CopybookPractise = () => {
         | null
     >(null);
 
-    /** 查看器高清大图加载状态（page 模式） */
-    const [lightboxImageStatus, setLightboxImageStatus] = useState<
-        "loading" | "loaded" | "error"
-    >("loading");
+    /** 查看器中已加载完成的高清大图地址（按地址派生加载态，无需 effect） */
+    const [lightboxLoadedSrc, setLightboxLoadedSrc] = useState<string | null>(
+        null
+    );
+
+    /** 查看器中加载失败的高清大图地址 */
+    const [lightboxErrorSrc, setLightboxErrorSrc] = useState<string | null>(
+        null
+    );
 
 
     /** 临帖工具箱：功能暂时占位 */
@@ -133,10 +140,15 @@ const CopybookPractise = () => {
         message.info(`${toolName}功能正在开发中，敬请期待`);
     };
 
-    /** 临帖工具箱点击分发：释文对照为真实开关，其余工具占位 */
+    /** 临帖工具箱点击分发：释文对照 / 手势翻页为真实开关，其余工具占位 */
     const handleToolClick = (toolName: string) => {
         if (toolName === "释文对照") {
             setShowTranscription((prev) => !prev);
+            return;
+        }
+
+        if (toolName === "手势翻页") {
+            toggleGesturePager();
             return;
         }
 
@@ -428,13 +440,21 @@ const CopybookPractise = () => {
             ? getPractisePageFullImageUrl(copybookId, lightboxPageNumber)
             : undefined;
 
-    // 切换页码 / 重新打开查看器时，高清大图重新进入加载态
-    useEffect(() => {
-        setLightboxImageStatus(
-            lightbox?.mode === "page" ? "loading" : "loaded"
-        );
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [lightboxFullSrc, lightbox?.mode]);
+    /**
+     * 高清大图是否加载中 / 加载失败：
+     * 纯派生（当前地址既未加载成功也未失败即视为加载中），
+     * 切换页码时地址变化自动回到加载态，无需 effect 重置。
+     */
+    const lightboxImageLoading =
+        lightbox?.mode === "page" &&
+        !!lightboxFullSrc &&
+        lightboxLoadedSrc !== lightboxFullSrc &&
+        lightboxErrorSrc !== lightboxFullSrc;
+
+    const lightboxImageFailed =
+        lightbox?.mode === "page" &&
+        !!lightboxFullSrc &&
+        lightboxErrorSrc === lightboxFullSrc;
 
     /**
      * 预加载相邻图片（上一张 / 下一张），
@@ -484,7 +504,15 @@ const CopybookPractise = () => {
         setLightbox({ mode: "character", index: Math.max(0, index) });
     };
 
-    const handleCloseLightbox = () => setLightbox(null);
+    const handleCloseLightbox = () => {
+        setLightbox(null);
+
+        // 手势翻页绑定大图查看器：关闭查看器时一并停止摄像头识别
+        if (gestureOn) {
+            handWavePager.stop();
+            setGestureOn(false);
+        }
+    };
 
     /** 查看器切换上一张 / 下一张；单字模式同步更新页面选中单字 */
     const handleLightboxIndexChange = (nextIndex: number) => {
@@ -504,6 +532,80 @@ const CopybookPractise = () => {
     const handleMiddlePageChange = (page: number) => {
         setMiddlePage(page);
         loadCharacters(page, searchKeyword);
+    };
+
+    // ==================== 手势翻页（摄像头左右挥手） ====================
+    // 手势功能绑定全屏大图查看器：
+    // 开启时先进入大图查看器（未打开则默认打开单字卡片查看器），
+    // 再申请摄像头权限，挥手切换查看器的"上一张 / 下一张"。
+
+    /** 手势翻页开关（工具箱"手势翻页"与左侧工具栏手势按钮共用） */
+    const [gestureOn, setGestureOn] = useState(false);
+
+    /** 查看器当前序列总数（page 模式 = 碑帖页数，character 模式 = 当前页单字数） */
+    const lightboxTotal = lightbox
+        ? lightbox.mode === "page"
+            ? pagePreviews.length
+            : characterRecords.length
+        : 0;
+
+    /**
+     * 挥手 → 上一张 / 下一张：
+     * 直接复用查看器的 handleLightboxIndexChange，不重新实现切换逻辑：
+     * - 向左挥 = 下一张，向右挥 = 上一张；
+     * - 第一张 / 最后一张继续挥动被忽略，不会产生越界序号；
+     * - 切换后选中单字、页面预览等状态仍按原有逻辑更新；
+     * - 查看器按钮与键盘翻页不受影响。
+     */
+    const handleGestureNext = () => {
+        if (!lightbox || lightbox.index >= lightboxTotal - 1) return;
+        handleLightboxIndexChange(lightbox.index + 1);
+    };
+
+    const handleGesturePrev = () => {
+        if (!lightbox || lightbox.index <= 0) return;
+        handleLightboxIndexChange(lightbox.index - 1);
+    };
+
+    const handWavePager = useHandWavePager({
+        onSwipeLeft: handleGestureNext,
+        onSwipeRight: handleGesturePrev,
+    });
+
+    /**
+     * 开启 / 停止手势翻页
+     *
+     * 开启：先保证全屏大图查看器已打开
+     * （默认打开单字卡片查看器并定位当前选中单字，
+     * 无单字时回退碑帖原页查看器），随后才申请摄像头权限；
+     * 停止：仅关闭摄像头识别，查看器保持打开。
+     */
+    const toggleGesturePager = () => {
+        if (gestureOn) {
+            handWavePager.stop();
+            setGestureOn(false);
+            return;
+        }
+
+        if (!lightbox) {
+            if (selectedCharacter?.imageUrl) {
+                handleOpenCharacterLightbox();
+            } else if (pagePreviews.length > 0) {
+                handleOpenPageLightbox(0);
+            } else {
+                message.warning("当前碑帖暂无可查看的大图内容");
+                return;
+            }
+        }
+
+        setGestureOn(true);
+        void handWavePager.start();
+    };
+
+    /** 面板上的"停止 / 关闭"：停止摄像头，查看器保持原样 */
+    const closeGesturePager = () => {
+        handWavePager.stop();
+        setGestureOn(false);
     };
 
     /** 收藏 / 取消收藏当前单字（真实接口，成功后以服务端状态为准） */
@@ -582,10 +684,7 @@ const CopybookPractise = () => {
         }
     };
 
-    /** 眼睛图标占位：眼控翻页后续开发 */
-    const handleEyePlaceholder = () => {
-        message.info("眼控翻页功能开发中，敬请期待");
-    };
+    /** 手势翻页按钮开关见 toggleGesturePager（与工具箱"手势翻页"共用） */
 
     // ==================== 渲染 ====================
 
@@ -839,13 +938,24 @@ const CopybookPractise = () => {
                                 </button>
                             </Tooltip>
 
-                            <Tooltip title="眼控翻页（开发中）" placement="right">
+                            <Tooltip
+                                title={
+                                    gestureOn
+                                        ? "停止手势翻页"
+                                        : "隔空翻页"
+                                }
+                                placement="right"
+                            >
                                 <button
                                     type="button"
-                                    onClick={handleEyePlaceholder}
-                                    className="w-8 h-8 rounded-lg border-0 flex items-center justify-center text-base text-[#756B61] hover:text-[#964328] hover:bg-[#964328]/5 cursor-pointer transition-colors"
+                                    onClick={toggleGesturePager}
+                                    className={`w-8 h-8 rounded-lg border-0 flex items-center justify-center text-base cursor-pointer transition-colors ${
+                                        gestureOn
+                                            ? "text-[#964328] bg-[#964328]/10"
+                                            : "text-[#756B61] hover:text-[#964328] hover:bg-[#964328]/5"
+                                    }`}
                                 >
-                                    <EyeOutlined />
+                                    <Hand size={17}/>
                                 </button>
                             </Tooltip>
                         </div>
@@ -1021,7 +1131,13 @@ const CopybookPractise = () => {
     {/* 临帖工具箱（独立组件） */}
     <PractiseToolbox
         onToolClick={handleToolClick}
-        activeTool={showTranscription ? "释文对照" : undefined}
+        activeTool={
+            gestureOn
+                ? "手势翻页"
+                : showTranscription
+                  ? "释文对照"
+                  : undefined
+        }
     />
 
     {/* 碑帖热搜 */}
@@ -1078,6 +1194,17 @@ const CopybookPractise = () => {
                 </div>
             </main>
 
+            {/* ==================== 手势翻页状态面板（大图查看器顶部居中） ==================== */}
+            {gestureOn && (
+                <GesturePagerPanel
+                    videoRef={handWavePager.videoRef}
+                    status={handWavePager.status}
+                    errorMessage={handWavePager.errorMessage}
+                    lastSwipe={handWavePager.lastSwipe}
+                    onStop={closeGesturePager}
+                />
+            )}
+
             {/* ==================== 全屏大图查看器 ==================== */}
             {/* 当前页内打开（不新开浏览器窗口、不跳转路由），
                 page 模式只展示碑帖原文件高清大图，
@@ -1108,13 +1235,9 @@ const CopybookPractise = () => {
                               ? `${lightboxCharacter.characterText} · ${lightbox.index + 1}/${characterRecords.length}`
                               : `${lightbox.index + 1}/${characterRecords.length}`
                     }
-                    loading={
-                        lightbox.mode === "page" &&
-                        lightboxImageStatus === "loading"
-                    }
+                    loading={lightboxImageLoading}
                     error={
-                        lightbox.mode === "page" &&
-                        lightboxImageStatus === "error"
+                        lightboxImageFailed
                             ? "高清大图加载失败，请稍后重试"
                             : null
                     }
@@ -1128,10 +1251,10 @@ const CopybookPractise = () => {
                                 draggable={false}
                                 className="max-h-full max-w-full object-contain rounded shadow-2xl pointer-events-auto"
                                 onLoad={() =>
-                                    setLightboxImageStatus("loaded")
+                                    setLightboxLoadedSrc(lightboxFullSrc)
                                 }
                                 onError={() =>
-                                    setLightboxImageStatus("error")
+                                    setLightboxErrorSrc(lightboxFullSrc)
                                 }
                             />
                         )

@@ -10,6 +10,7 @@ import AritcleWorks from "../pages/ArticleWorks";
 import SearchPage from "../pages/SearchPage";
 import XiaoMoAgent from "../pages/XiaoMoAgent";
 import CopybookPractise from "../pages/CopybookPractise";
+import RequireLogin from "../components/RequireLogin";
 import UserProfile from "../pages/UserProfile";
 import UserSettingsLayout from "../pages/UserSettings/UserSettingsLayout";
 import ProfileSettings from "../pages/UserSettings/ProfileSettings";
@@ -36,16 +37,28 @@ const router = createBrowserRouter([
                 element: <Map />
             },
             {
+                // 小墨Agent：仅登录用户可用（路由级登录守卫，
+                // 未登录不再闪现页面残影）
                 path: "/agent",
-                element: <XiaoMoAgent />
+                element: (
+                    <RequireLogin prompt="请先登录后再使用小墨 AI">
+                        <XiaoMoAgent />
+                    </RequireLogin>
+                )
             },
             {
                 path: "/copybook/:id",
                 element: <CopybookDetails />
             },
             {
+                // 单字临帖页：仅登录用户可访问（路由级登录守卫，
+                // 直接输入地址或新窗口打开同样会被拦截到登录页）
                 path: "/copybook/:id/practise",
-                element: <CopybookPractise />
+                element: (
+                    <RequireLogin>
+                        <CopybookPractise />
+                    </RequireLogin>
+                )
             },
             {
                 path: "/aritcleWorks/:id",

@@ -7,7 +7,6 @@ import {
     Space,
     Spin,
     Typography,
-    App
 } from "antd";
 import {
     PlusOutlined,
@@ -19,7 +18,6 @@ import {
     getConversationList,
     getMessageList,
 } from "../../services/Agent/api";
-import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../stores";
 import { usePageMeta } from "../../hooks/usePageMeta";
@@ -36,9 +34,6 @@ interface ChatMessage {
 }
 
 const XiaoMoAgent = () => {
-
-    const {message} = App.useApp();
-    const navigate = useNavigate();
 
     // 页面标题 + 浏览历史
     usePageMeta({ title: "小墨Agent", pageType: "agent" });
@@ -91,24 +86,11 @@ const XiaoMoAgent = () => {
      */
     const [messageLoading, setMessageLoading] = useState(false);
 
-  
-    /**
-     * 页面进入时检查登录状态
-     */
-    useEffect(() => {
-
-        if (!userInfo) {
-            message.warning("请先登录后再使用小墨 AI");
-
-            navigate("/login", {
-                replace: true,
-            });
-        }
-
-    }, [userInfo, navigate, message]);
-
     /**
      * 登录后查询历史会话
+     *
+     * 登录校验已由路由级 RequireLogin 守卫完成，
+     * 此处仅保留空值防御。
      */
     useEffect(() => {
 
@@ -123,8 +105,11 @@ const XiaoMoAgent = () => {
 
     /**
      * 查询历史会话
+     *
+     * 用函数声明（提升）供上方 effect 调用，
+     * 避免 const 声明前的引用告警。
      */
-    const loadConversationList = async () => {
+    async function loadConversationList() {
         setConversationLoading(true);
 
         try {
@@ -136,7 +121,7 @@ const XiaoMoAgent = () => {
         } finally {
             setConversationLoading(false);
         }
-    };
+    }
 
     /**
      * 点击历史会话
@@ -277,11 +262,6 @@ const XiaoMoAgent = () => {
             handleSend();
         }
     };
-
-     // 防止未登录时先渲染 AI 页面
-    if (!userInfo) {
-        return null;
-    }
 
     return (
         <div
