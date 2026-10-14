@@ -33,3 +33,19 @@ export async function deleteCopybookComment(copybookId: number, commentId: numbe
         { method: "DELETE" }
     );
 }
+
+/**
+ * 举报评论
+ *
+ * POST /api/web/comment/report（需登录，举报人ID由后端 JWT 解析，前端不传）
+ */
+export async function reportComment(body: { commentId: number; reason: string }) {
+    return request<API.Result<number>>(
+        `/api/web/comment/report`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            data: body,
+        }
+    );
+}

@@ -1,11 +1,11 @@
-import { App, Button, Empty, Input, Popconfirm, Spin } from "antd";
+import { App, Button, Empty, Input, Modal, Popconfirm, Spin } from "antd";
 import { MessageOutlined, SendOutlined, DownOutlined, UpOutlined, EditOutlined } from "@ant-design/icons";
 import UserAvatar from "../UserAvatar";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../stores";
-import { createCopybookComment, deleteCopybookComment, getCopybookComments } from "../../services/comment/api";
+import { createCopybookComment, deleteCopybookComment, getCopybookComments, reportComment } from "../../services/comment/api";
 
 interface CommentSectionProps {
     copybookId?: number;
@@ -32,7 +32,10 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
     const [comments, setComments] = useState<API.WebCopybookCommentResponse[]>([]);
     const [total, setTotal] = useState(0);
     const [content, setContent] = useState("");
-    const [replyTarget, setReplyTarget] = useState<API.WebCopybookCommentResponse | null>(null);
+    /** 内联回复：当前正在回复的评论ID / 回复内容 / 提交中 */
+    const [inlineReplyId, setInlineReplyId] = useState<number | null>(null);
+    const [inlineReplyContent, setInlineReplyContent] = useState("");
+    const [inlineSubmitting, setInlineSubmitting] = useState(false);
     const [loadedCopybookId, setLoadedCopybookId] = useState<number | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [deletingCommentId, setDeletingCommentId] = useState<number | null>(null);
@@ -42,6 +45,12 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
 
     /** 消息跳转定位时短暂高亮的评论ID */
     const [highlightedId, setHighlightedId] = useState<number | null>(null);
+
+    /** 举报弹窗：被举报评论 / 举报原因 / 提交中（防重复提交） */
+    const [reportTarget, setReportTarget] =
+        useState<API.WebCopybookCommentResponse | null>(null);
+    const [reportReason, setReportReason] = useState("");
+    const [reporting, setReporting] = useState(false);
 
     const loadComments = async (id: number) => {
         const res = await getCopybookComments(id, { current: 1, pageSize: 20 });
@@ -113,7 +122,6 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
         try {
             const res = await createCopybookComment(copybookId, {
                 content: trimmedContent,
-                parentId: replyTarget?.id,
             });
             if (res.code === 4001) {
                 message.info("登录已过期，请重新登录");
@@ -126,7 +134,6 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
             }
 
             setContent("");
-            setReplyTarget(null);
             await loadComments(copybookId);
             await onCommentCreated?.();
             message.success("评论发布成功");
@@ -135,6 +142,49 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
             message.error("网络异常，请稍后重试");
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    /** 内联回复：直接回复指定评论（parentId=该评论ID），提交后就地刷新 */
+    const handleInlineReply = async (comment: API.WebCopybookCommentResponse) => {
+        if (!copybookId || inlineSubmitting) return;
+        const trimmed = inlineReplyContent.trim();
+        if (!trimmed) {
+            message.warning("请输入回复内容");
+            return;
+        }
+        if (!localStorage.getItem("token")) {
+            message.info("请先登录后再回复");
+            navigate("/login");
+            return;
+        }
+
+        setInlineSubmitting(true);
+        try {
+            const res = await createCopybookComment(copybookId, {
+                content: trimmed,
+                parentId: comment.id,
+            });
+            if (res.code === 4001) {
+                message.info("登录已过期，请重新登录");
+                navigate("/login");
+                return;
+            }
+            if (res.code !== 200) {
+                message.error(res.message || "回复失败");
+                return;
+            }
+
+            setInlineReplyId(null);
+            setInlineReplyContent("");
+            await loadComments(copybookId);
+            await onCommentCreated?.();
+            message.success("回复成功");
+        } catch (error) {
+            console.error("回复失败", error);
+            message.error("网络异常，请稍后重试");
+        } finally {
+            setInlineSubmitting(false);
         }
     };
 
@@ -165,6 +215,47 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
         }
     };
 
+    /**
+     * 提交举报：
+     *   · 未登录先去登录；
+     *   · 举报人ID由后端 JWT 解析，前端只传 commentId + reason；
+     *   · reporting 标记防止重复提交，成功后关闭弹窗。
+     */
+    const handleReport = async () => {
+        if (!reportTarget || reporting) return;
+
+        const reason = reportReason.trim();
+        if (!reason) {
+            message.warning("请输入举报原因");
+            return;
+        }
+
+        setReporting(true);
+        try {
+            const res = await reportComment({
+                commentId: reportTarget.id,
+                reason,
+            });
+            if (res.code === 4001) {
+                message.info("请先登录后再举报");
+                navigate("/login");
+                return;
+            }
+            if (res.code === 200) {
+                message.success("举报已提交，我们会尽快核实");
+                setReportTarget(null);
+                setReportReason("");
+            } else {
+                message.error(res.message || "举报失败，请稍后重试");
+            }
+        } catch (error) {
+            console.error("举报评论失败", error);
+            message.error("网络异常，请稍后重试");
+        } finally {
+            setReporting(false);
+        }
+    };
+
     const renderComment = (comment: API.WebCopybookCommentResponse, isReply = false) => (
         <article
             key={comment.id}
@@ -189,21 +280,44 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
                         {comment.content}
                     </p>
                     {!comment.deleted && (
+                        <>
                         <div className="mt-2 flex items-center gap-3">
                             <button
                                 type="button"
                                 onClick={() => {
-                                    setReplyTarget(comment);
-                                    setIsCollapsed(false);
+                                    if (inlineReplyId === comment.id) {
+                                        setInlineReplyId(null);
+                                    } else {
+                                        setInlineReplyId(comment.id);
+                                        setInlineReplyContent("");
+                                    }
                                 }}
                                 className="min-h-11 px-1 text-sm text-gray-500 hover:text-[#964328] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#964328]"
                             >
                                 回复
                             </button>
+                            {/* 举报按钮：自己的评论不显示 */}
+                            {currentUser?.id !== comment.userId && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (!localStorage.getItem("token")) {
+                                            message.info("请先登录后再举报");
+                                            navigate("/login");
+                                            return;
+                                        }
+                                        setReportReason("");
+                                        setReportTarget(comment);
+                                    }}
+                                    className="min-h-11 px-1 text-sm font-medium text-[#964328] hover:text-[#70311e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#964328]"
+                                >
+                                    举报
+                                </button>
+                            )}
                             {currentUser?.id === comment.userId && (
                                 <Popconfirm
                                     title="删除这条评论？"
-                                    description="删除后无法恢复，但其回复会保留。"
+                                    description="删除后无法恢复；评论下没有回复会被直接移除，有回复则显示「该评论已删除」占位"
                                     okText="删除"
                                     cancelText="取消"
                                     okButtonProps={{ danger: true, loading: deletingCommentId === comment.id }}
@@ -219,6 +333,33 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
                                 </Popconfirm>
                             )}
                         </div>
+
+                        {/* 内联回复输入框：点击回复时直接在该评论下方展开 */}
+                        {inlineReplyId === comment.id && (
+                            <div className="mt-3 rounded-xl border border-[#964328]/20 bg-[#fdfbf7]/80 p-3">
+                                <div className="mb-2 text-xs text-[#70311e]">
+                                    回复 @{comment.username}
+                                </div>
+                                <Input.TextArea
+                                    autoFocus
+                                    value={inlineReplyContent}
+                                    onChange={event => setInlineReplyContent(event.target.value)}
+                                    maxLength={500}
+                                    autoSize={{ minRows: 2, maxRows: 6 }}
+                                    placeholder={`回复 @${comment.username}`}
+                                    disabled={inlineSubmitting}
+                                    className="border-[#964328]/20! hover:border-[#964328]! focus:border-[#964328]!"
+                                />
+                                <div className="mt-2 flex items-center justify-between gap-2">
+                                    <span className="text-xs text-gray-400">{inlineReplyContent.length}/500</span>
+                                    <div className="flex items-center gap-2">
+                                        <Button size="small" onClick={() => setInlineReplyId(null)} disabled={inlineSubmitting}>取消</Button>
+                                        <Button size="small" type="primary" loading={inlineSubmitting} onClick={() => handleInlineReply(comment)} className="bg-[#964328]! hover:bg-[#70311e]! border-none">发布回复</Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        </>
                     )}
                 </div>
             </div>
@@ -254,21 +395,15 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
                 </Button>
             </div>
 
-            {/* 可折叠的评论输入框 */}
+            {/* 可折叠的评论输入框（仅用于发表新评论；回复在评论下方内联展开） */}
             {!isCollapsed && (
                 <div className="mt-5 rounded-xl border border-[#964328]/20 bg-[#fdfbf7]/80 p-4 shadow-sm transition-all">
-                    {replyTarget && (
-                        <div className="mb-3 flex items-center justify-between gap-3 rounded-lg bg-[#964328]/10 px-3 py-2 text-sm text-[#70311e]">
-                            <span>回复 @{replyTarget.username}</span>
-                            <button type="button" onClick={() => setReplyTarget(null)} className="min-h-8 px-1 text-gray-500 hover:text-[#964328]">取消</button>
-                        </div>
-                    )}
                     <Input.TextArea
                         value={content}
                         onChange={event => setContent(event.target.value)}
                         maxLength={500}
                         autoSize={{ minRows: 3, maxRows: 8 }}
-                        placeholder={replyTarget ? `回复 @${replyTarget.username}` : "写下你的看法，和墨友交流…"}
+                        placeholder="写下你的看法，和墨友交流…"
                         aria-label="评论内容"
                         disabled={submitting}
                         className="border-[#964328]/20! hover:border-[#964328]! focus:border-[#964328]! focus:shadow-[0_0_0_2px_rgba(150,67,40,0.1)]!"
@@ -297,6 +432,52 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
                     comments.map(comment => renderComment(comment))
                 )}
             </div>
+
+            {/* 我要举报 */}
+            <Modal
+                title="我要举报"
+                open={!!reportTarget}
+                width={520}
+                okText="提交"
+                cancelText="取消"
+                confirmLoading={reporting}
+                maskClosable={!reporting}
+                okButtonProps={{
+                    className: "bg-[#964328]! hover:bg-[#70311e]! border-none",
+                }}
+                styles={{ body: { paddingBottom: 8 } }}
+                onCancel={() => {
+                    if (reporting) return;
+                    setReportTarget(null);
+                    setReportReason("");
+                }}
+                onOk={handleReport}
+            >
+                {reportTarget && (
+                    <p className="mb-3 text-xs text-gray-500">
+                        举报评论：
+                        <span className="font-medium text-gray-700">
+                            {reportTarget.username}
+                        </span>
+                        「
+                        {reportTarget.content.length > 40
+                            ? `${reportTarget.content.slice(0, 40)}…`
+                            : reportTarget.content}
+                        」
+                    </p>
+                )}
+                <div className="mb-6">
+                    <Input.TextArea
+                        value={reportReason}
+                        onChange={(event) => setReportReason(event.target.value)}
+                        maxLength={500}
+                        showCount
+                        autoSize={{ minRows: 3, maxRows: 6 }}
+                        placeholder="请输入举报原因"
+                        disabled={reporting}
+                    />
+                </div>
+            </Modal>
         </section>
     );
 };

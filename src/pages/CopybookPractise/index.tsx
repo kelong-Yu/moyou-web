@@ -670,7 +670,7 @@ const CopybookPractise = () => {
                 {/* ==================== 下层三栏主体区域 ==================== */}
                 <div className="mt-4 flex flex-col lg:flex-row gap-5 lg:items-start">
                     {/* ---------- 左侧：当前选中单字大图 + 竖向操作栏 ---------- */}
-                    <div className="flex-1 min-w-0 flex gap-3 lg:h-[380px]">
+                    <div className="flex-1 min-w-0 flex gap-3 lg:h-95">
                         {/* 竖向操作图标栏 */}
                         <div className="w-11 shrink-0 rounded-xl border border-[#964328]/15 bg-white/75 shadow-sm flex flex-col items-center gap-2 py-2.5 px-1 self-start">
                             <Tooltip
