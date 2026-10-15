@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Image } from "antd";
+import { Image, Drawer } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   HomeOutlined,
@@ -8,6 +8,7 @@ import {
   RobotOutlined,
   EditOutlined,
   EllipsisOutlined,
+  MenuOutlined,
 } from "@ant-design/icons";
 import UserDropdown from "../../components/UserDropdown";
 import moyouLogo from "../../assets/moyoulogo.png";
@@ -20,6 +21,9 @@ const HeaderMenu: React.FC = () => {
 
   // 1. 滚动状态
   const [isScrolled, setIsScrolled] = useState(false);
+
+  // 移动端菜单抽屉
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // 2. 配置需要深色/红底背景的路由前缀（不需要加 * 通配符）
   // 注意：以这些路径开头的页面（例如 /aritcleWorks/27）都会生效
@@ -52,20 +56,20 @@ const HeaderMenu: React.FC = () => {
     { key: "/copybook", label: "碑帖字库", icon: <BookOutlined /> },
     { key: "/map", label: "书家列传", icon: <CompassOutlined /> },
     { key: "/agent", label: "小墨Agent", icon: <RobotOutlined /> },
-    { key: "/practise", label: "书法字典", icon: <EditOutlined /> },
+    { key: "/dictionary", label: "书法字典", icon: <EditOutlined /> },
     { key: "/more", label: "更多", icon: <EllipsisOutlined /> },
   ];
 
   return (
     <header
-      className={`fixed top-0 left-0 w-full z-50 flex items-center justify-between px-8 py-3 select-none transition-all duration-300 ${
+      className={`fixed top-0 left-0 w-full z-50 flex items-center justify-between px-4 md:px-8 py-3 select-none transition-all duration-300 ${
         isDarkHeader
           ? "bg-[#964328] " // 下拉/深色页：主题赭红色背景 + 白色文字
           : "bg-transparent" // 顶端默认：透明背景
       }`}
     >
       {/* 左侧 Logo + 导航菜单 */}
-      <div className="flex items-center space-x-6">
+      <div className="flex items-center space-x-2 md:space-x-6">
         {/* Logo */}
         <div
           className="cursor-pointer flex items-center mr-3"
@@ -80,8 +84,8 @@ const HeaderMenu: React.FC = () => {
           />
         </div>
 
-        {/* 导航菜单项 */}
-        <nav className="flex items-center space-x-1">
+        {/* 导航菜单项（桌面端） */}
+        <nav className="hidden md:flex items-center space-x-1">
           {menus.map((item) => {
             const isActive = location.pathname === item.key;
             return (
@@ -106,6 +110,20 @@ const HeaderMenu: React.FC = () => {
             );
           })}
         </nav>
+
+        {/* 移动端汉堡按钮 */}
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className={`md:hidden flex items-center justify-center p-2 rounded-md border-none cursor-pointer ${
+            isDarkHeader
+              ? "text-white hover:bg-white/10"
+              : "text-gray-700 hover:bg-black/5"
+          }`}
+          aria-label="打开菜单"
+        >
+          <MenuOutlined className="text-xl" />
+        </button>
       </div>
 
       {/* 右侧用户下拉信息 */}
@@ -116,6 +134,39 @@ const HeaderMenu: React.FC = () => {
       >
         <UserDropdown isDarkHeader={isDarkHeader} />
       </div>
+
+      {/* 移动端菜单抽屉 */}
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        placement="left"
+        width={240}
+        title={<span className="font-serif font-bold">墨友菜单</span>}
+      >
+        <nav className="flex flex-col gap-1">
+          {menus.map((item) => {
+            const isActive = location.pathname === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => {
+                  setDrawerOpen(false);
+                  navigate(item.key);
+                }}
+                className={`flex items-center space-x-2.5 px-3 py-2.5 rounded-md text-[15px] border-none cursor-pointer text-left ${
+                  isActive
+                    ? "bg-[#964328] text-white font-bold"
+                    : "text-gray-700 hover:bg-black/5"
+                }`}
+              >
+                <span className="flex items-center">{item.icon}</span>
+                <span className="tracking-wide">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </Drawer>
     </header>
   );
 };

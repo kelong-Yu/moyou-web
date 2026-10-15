@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router-dom";
 import Home from "../pages/Home";
 import Login from "../pages/Login";
 import Register from "../pages/Register";
+import ForgotPassword from "../pages/ForgotPassword";
 import MainLayout from "../layouts/MainLayout";
 import CopyBook from "../pages/CopyBook";
 import Map from "../pages/Map";
@@ -10,6 +11,7 @@ import AritcleWorks from "../pages/ArticleWorks";
 import SearchPage from "../pages/SearchPage";
 import XiaoMoAgent from "../pages/XiaoMoAgent";
 import CopybookPractise from "../pages/CopybookPractise";
+import Dictionary from "../pages/Dictionary";
 import RequireLogin from "../components/RequireLogin";
 import UserProfile from "../pages/UserProfile";
 import UserSettingsLayout from "../pages/UserSettings/UserSettingsLayout";
@@ -66,6 +68,11 @@ const router = createBrowserRouter([
                 
             },
             {
+                // 书法字典：公共页，游客可访问
+                path: "/dictionary",
+                element: <Dictionary />
+            },
+            {
                 path: "/search",
                 element: <SearchPage />
             },
@@ -88,6 +95,10 @@ const router = createBrowserRouter([
     {
         path: "/register",
         element: <Register />
+    },
+    {
+        path: "/forgot-password",
+        element: <ForgotPassword />
     },
     {
         // 个人中心（独立布局：左侧导航 + 面包屑 + 用户下拉）

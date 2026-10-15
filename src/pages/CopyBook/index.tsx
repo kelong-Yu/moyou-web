@@ -212,10 +212,10 @@ const CopyBook: React.FC = () => {
 
           {/* 前景内容区 */}
           <div className="relative z-10 flex flex-col items-center justify-center text-center px-4 w-full opacity-90">
-            <h1 className="text-6xl md:text-6xl font-bold text-white tracking-widest mb-6 font-serif">
+            <h1 className="text-4xl md:text-6xl font-bold text-white tracking-widest mb-4 md:mb-6 font-serif">
               碑帖书库
             </h1>
-            <h4 className="text-xl md:text-xl  text-gray-400 tracking-widest mb-6 font-serif">"书之妙道，神采为上，形质次之"</h4>
+            <h4 className="text-base md:text-xl text-gray-400 tracking-widest mb-4 md:mb-6 font-serif">"书之妙道，神采为上，形质次之"</h4>
 
             {/* 搜索框与面板主容器 */}
             <div ref={searchContainerRef} className="w-250 max-w-[92vw] transition-all duration-300 flex flex-col items-center">
@@ -354,10 +354,10 @@ const CopyBook: React.FC = () => {
 
       {/* 切换按钮容器 */}
       <div className="sticky top-15 z-30">
-        <HeroContent height="18vh" backgroundColor="#FFFBEB">
-          <div className="w-full max-w-6xl mx-auto h-full flex flex-col items-center justify-center gap-4">
+        <HeroContent height="auto" backgroundColor="#FFFBEB">
+          <div className="w-full max-w-6xl mx-auto flex flex-col items-center justify-center gap-3 py-4 px-3">
             {/* 上方：朝代筛选 */}
-            <div className="flex items-center justify-center space-x-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
 
               {/* 全部朝代 */}
               <button
@@ -403,7 +403,7 @@ const CopyBook: React.FC = () => {
 
             </div>
             {/* 下方：字体筛选 */}
-            <div className="flex items-center justify-center space-x-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
 
               {fontStyles.map((style) => (
                 <button
@@ -438,7 +438,7 @@ const CopyBook: React.FC = () => {
         <div ref={waterfallRef}>
           <CopybookWaterfall list={copybookList} />
         </div>
-        <div className="flex justify-center items-center mt-10 pb-10">
+        <div className="flex flex-wrap justify-center items-center gap-2 mt-10 pb-10 px-3">
             <Pagination
                 className="copybook-pagination"
                 current={current}

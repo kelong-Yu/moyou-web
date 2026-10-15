@@ -39,21 +39,58 @@ export async function register(body: API.RegisterParams, options?: { [key: strin
 /**
  * 发送邮箱验证码
  *
- * 后端：
- * POST /api/web/user/email/sendCode?email=xxx@qq.com
+ * 后端：POST /api/web/user/email/sendCode?email=xxx&scene=register&captchaToken=xxx
+ *
+ * @param email        收件邮箱
+ * @param scene        业务场景：register-注册 / reset-找回密码
+ * @param captchaToken 滑块人机验证通过后下发的一次性凭证
  */
-export async function sendEmailCode(email: string) {
+export async function sendEmailCode(
+  email: string,
+  scene: "register" | "reset" = "register",
+  captchaToken?: string
+) {
   return request<API.SendCodeResult>(
     '/api/web/user/email/sendCode',
     {
       method: 'POST',
       params: {
         email,
+        scene,
+        captchaToken,
       },
       //多给点时间，防止超时
       timeout: 20000,
     }
   );
+}
+
+/**
+ * 找回密码（重置密码，未登录）
+ * POST /api/web/user/resetPassword
+ */
+export async function resetPassword(body: API.ResetPasswordParams) {
+  return request<API.Result<boolean>>('/api/web/user/resetPassword', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+  });
+}
+
+/**
+ * 修改密码（已登录，需校验原密码）
+ * POST /api/web/user/changePassword
+ */
+export async function changePassword(body: API.ChangePasswordParams) {
+  return request<API.Result<boolean>>('/api/web/user/changePassword', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+  });
 }
 
 

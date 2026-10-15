@@ -10,7 +10,7 @@ const CopybookWaterfall: React.FC<Props> = ({ list }) => {
   const navigate = useNavigate();
 
   return (
-    <div className="columns-4 gap-6 px-30">
+    <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 md:gap-6 px-4 sm:px-6 lg:px-12 xl:px-30">
       {list.map((item) => (
         <div key={item.id} className="break-inside-avoid mb-6">
           <div
@@ -22,6 +22,8 @@ const CopybookWaterfall: React.FC<Props> = ({ list }) => {
               <img
                 src={item.imageUrl}
                 alt={item.name}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
 

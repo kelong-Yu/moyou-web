@@ -124,6 +124,8 @@ declare namespace API {
     userPassword?: string;
     autoLogin?: boolean;
     type?: string;
+    /** 滑块人机验证通过后下发的一次性凭证 */
+    captchaToken?: string;
   };
 
   /**
@@ -135,5 +137,24 @@ declare namespace API {
     userAccount?: string;
     checkPassword?: string;
     userPassword?: string;
+  };
+
+  /**
+   * 找回密码（重置密码）参数
+   */
+  type ResetPasswordParams = {
+    email?: string;
+    code?: string;
+    newPassword?: string;
+    checkPassword?: string;
+  };
+
+  /**
+   * 修改密码参数（已登录）
+   */
+  type ChangePasswordParams = {
+    oldPassword?: string;
+    newPassword?: string;
+    checkPassword?: string;
   };
 }

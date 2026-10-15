@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { App, Button, Input, Select, Spin } from "antd";
 import { EditOutlined,KeyOutlined, } from "@ant-design/icons";
 import UserAvatar from "../../components/UserAvatar";
+import ChangePasswordModal from "./ChangePasswordModal";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "../../stores";
 import { setUserInfo } from "../../stores/slices/userSlice";
@@ -39,6 +40,9 @@ const ProfileSettings = () => {
     /** 是否处于编辑模式（默认只读） */
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
+
+    /** 修改密码弹窗 */
+    const [pwdModalOpen, setPwdModalOpen] = useState(false);
 
     const [form, setForm] = useState<ProfileFormState>({
         username: "",
@@ -79,7 +83,6 @@ const ProfileSettings = () => {
 
     // ==================== 展示字段 ====================
     const displayName = profile?.username || profile?.userAccount || "墨友";
-    const emailText = profile?.email || profile?.userAccount || "未绑定";
     const roleText =
         profile?.role === 1
             ? "管理员"
@@ -342,13 +345,20 @@ const ProfileSettings = () => {
                             </div>
 
                             <Button className="!rounded-lg !border-[#964328]/40 !text-[#964328] hover:!border-[#964328] hover:!text-[#964328]"
-                                icon={<KeyOutlined />}>
+                                icon={<KeyOutlined />}
+                                onClick={() => setPwdModalOpen(true)}>
                                 修改密码
                             </Button>
                         </div>
                     </div>
                 </>
             )}
+
+            {/* 修改密码弹窗 */}
+            <ChangePasswordModal
+                open={pwdModalOpen}
+                onClose={() => setPwdModalOpen(false)}
+            />
         </div>
     );
 };

@@ -5,10 +5,9 @@ import {
   LockOutlined,
   ArrowLeftOutlined,
   LoginOutlined,
-  SafetyCertificateFilled,
-  CheckOutlined,
 } from "@ant-design/icons";
 import { login, currentUser } from "../../services/user/api";
+import SliderCaptcha from "../../components/SliderCaptcha";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { setUserInfo } from "../../stores/slices/userSlice";
@@ -77,18 +76,28 @@ const Login = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 真人验证状态
+  // 安全验证状态（滑块）
   const [isVerified, setIsVerified] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+
+  // 登录失败后 token 已被后端消费，需重置验证状态让用户重新滑动
+  const resetCaptcha = () => {
+    setIsVerified(false);
+    setCaptchaToken("");
+  };
 
   const handleLogin = async (values: API.LoginParams) => {
-    // 验证真人状态校验
-    if (!isVerified) {
-      message.warning("请先完成真人安全验证");
+    // 安全验证校验
+    if (!isVerified || !captchaToken) {
+      message.warning("请先完成安全验证");
       return;
     }
 
     try {
-      const res = (await login(values)) as API.Result<string>;
+      const res = (await login({
+        ...values,
+        captchaToken,
+      })) as API.Result<string>;
       if (res.code === 200) {
         //1、保存JWT
         localStorage.setItem("token", res.data);
@@ -103,8 +112,11 @@ const Login = () => {
         goToTarget();
         return;
       }
+      // 登录未成功：重置安全验证
+      resetCaptcha();
       message.error(res.message || "登录失败");
     } catch {
+      resetCaptcha();
       message.error("登录失败");
     }
   };
@@ -197,48 +209,14 @@ const Login = () => {
             />
           </Form.Item>
 
-          {/* 真人验证框 */}
-          <div style={styles.captchaContainer}>
-            <div style={styles.captchaHeader}>
-              <SafetyCertificateFilled
-                style={{ color: "#8c381e", fontSize: 18, marginRight: 8 }}
-              />
-              <span style={{ fontWeight: 600, color: "#334155", fontSize: 14 }}>
-                安全验证
-              </span>
-            </div>
-
-            <div
-              style={{
-                ...styles.captchaBox,
-                borderColor: isVerified ? "#8c381e" : "#e2e8f0",
-              }}
-              onClick={() => setIsVerified(!isVerified)}
-            >
-              <div
-                style={{
-                  ...styles.checkbox,
-                  backgroundColor: isVerified ? "#8c381e" : "#fff",
-                  borderColor: isVerified ? "#8c381e" : "#cbd5e1",
-                }}
-              >
-                {isVerified && (
-                  <CheckOutlined style={{ color: "#fff", fontSize: 12 }} />
-                )}
-              </div>
-              <span style={styles.captchaText}>Verify you're human</span>
-            </div>
-
-            <div style={{ marginTop: 10, textAlign: "left" }}>
-              <a
-                href="#captcha-help"
-                onClick={(e) => e.preventDefault()}
-                style={styles.captchaHelpLink}
-              >
-                无法完成智能验证？使用图片验证码登录
-              </a>
-            </div>
-          </div>
+          {/* 安全验证（滑块拼图） */}
+          <SliderCaptcha
+            verified={isVerified}
+            onSuccess={(token) => {
+              setCaptchaToken(token);
+              setIsVerified(true);
+            }}
+          />
 
           {/* 登录按钮 */}
           <Button
@@ -362,51 +340,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "8px",
     height: "44px",
     borderColor: "#e2e8f0",
-  },
-  // 真人验证组件样式
-  captchaContainer: {
-    backgroundColor: "#f8fafc",
-    border: "1px solid #f1f5f9",
-    borderRadius: "12px",
-    padding: "14px 16px",
-    marginBottom: "20px",
-  },
-  captchaHeader: {
-    display: "flex",
-    alignItems: "center",
-    marginBottom: "12px",
-  },
-  captchaBox: {
-    display: "flex",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    border: "1px solid #e2e8f0",
-    borderRadius: "10px",
-    padding: "10px 14px",
-    cursor: "pointer",
-    transition: "all 0.2s ease",
-  },
-  checkbox: {
-    width: "20px",
-    height: "20px",
-    borderRadius: "4px",
-    border: "2px solid #cbd5e1",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: "12px",
-    transition: "all 0.2s ease",
-  },
-  captchaText: {
-    fontSize: "14px",
-    fontWeight: 500,
-    color: "#1e293b",
-    userSelect: "none",
-  },
-  captchaHelpLink: {
-    fontSize: "12px",
-    color: "#8c381e", // 3. 颜色调整为与登录按钮一致的棕红色
-    textDecoration: "none",
   },
   loginBtn: {
     backgroundColor: "#8c381e",

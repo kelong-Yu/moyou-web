@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Form, Input, Button, App } from "antd";
 import {
   UserOutlined,
@@ -7,6 +7,9 @@ import {
   UserAddOutlined,
 } from "@ant-design/icons";
 import { register, sendEmailCode } from "../../services/user/api";
+import SliderCaptcha, {
+  type SliderCaptchaRef,
+} from "../../components/SliderCaptcha";
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../../assets/moyoulogo.png";
 import bg from "../../assets/lantingxu.jpg";
@@ -26,6 +29,12 @@ const Register = () => {
   // 是否正在发送验证码
   const [sendingCode, setSendingCode] = useState(false);
 
+  // 滑块人机验证：点击"发送验证码"时命令式打开
+  const captchaRef = useRef<SliderCaptchaRef>(null);
+  // 记录一次"待发送"流程，验证通过后立即发送
+  const pendingSendRef = useRef(false);
+  const pendingEmailRef = useRef("");
+
   /**
    * 验证码倒计时
    */
@@ -44,7 +53,8 @@ const Register = () => {
   }, [countdown]);
 
   /**
-   * 发送验证码
+   * 点击"发送验证码"：
+   * 先校验邮箱，再弹出滑块人机验证；验证通过后（onSuccess）才真正发信。
    */
   const handleSendCode = async () => {
     // 先校验邮箱
@@ -57,10 +67,19 @@ const Register = () => {
       return;
     }
 
+    // 记录待发送邮箱，打开滑块验证
+    pendingEmailRef.current = values.email.trim();
+    pendingSendRef.current = true;
+    captchaRef.current?.open();
+  };
+
+  /**
+   * 真正发送验证码（携带一次性 captchaToken，scene=register）
+   */
+  const doSendCode = async (email: string, captchaToken: string) => {
     try {
       setSendingCode(true);
-      const email = values.email.trim();
-      const res: any = await sendEmailCode(email);
+      const res: any = await sendEmailCode(email, "register", captchaToken);
 
       if (res.code === 200) {
         message.success("验证码已发送，请查收邮箱");
@@ -70,10 +89,20 @@ const Register = () => {
       }
 
       message.error(res.message || "验证码发送失败");
-    } catch (e) {
+    } catch {
       message.error("验证码发送失败");
     } finally {
       setSendingCode(false);
+    }
+  };
+
+  /**
+   * 滑块验证成功回调：若处于"待发送验证码"流程则立即发送
+   */
+  const handleCaptchaSuccess = (token: string) => {
+    if (pendingSendRef.current) {
+      pendingSendRef.current = false;
+      doSendCode(pendingEmailRef.current, token);
     }
   };
 
@@ -248,7 +277,7 @@ const Register = () => {
           >
             <Input
               prefix={<UserOutlined style={{ color: "#a0aec0" }} />}
-              placeholder="请输入账号"
+              placeholder="请输入账号（推荐英文字母开头）"
               size="large"
               style={styles.inputStyle}
             />
@@ -329,6 +358,14 @@ const Register = () => {
             </Link>
           </div>
         </Form>
+
+        {/* 滑块人机验证：无触发框，由"发送验证码"按钮命令式打开 */}
+        <SliderCaptcha
+          ref={captchaRef}
+          hideTrigger
+          verified={false}
+          onSuccess={handleCaptchaSuccess}
+        />
       </div>
     </div>
   );
