@@ -317,7 +317,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ copybookId, onCommentCr
                             {currentUser?.id === comment.userId && (
                                 <Popconfirm
                                     title="删除这条评论？"
-                                    description="删除后无法恢复；评论下没有回复会被直接移除，有回复则显示「该评论已删除」占位"
+                                    description="删除后评论将无法恢复，确认删除吗？"
                                     okText="删除"
                                     cancelText="取消"
                                     okButtonProps={{ danger: true, loading: deletingCommentId === comment.id }}

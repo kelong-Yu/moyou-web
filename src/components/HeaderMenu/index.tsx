@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { Image, Drawer } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  HomeOutlined,
   BookOutlined,
   CompassOutlined,
   RobotOutlined,
@@ -27,7 +26,7 @@ const HeaderMenu: React.FC = () => {
 
   // 2. 配置需要深色/红底背景的路由前缀（不需要加 * 通配符）
   // 注意：以这些路径开头的页面（例如 /aritcleWorks/27）都会生效
-  const darkPagePrefixes = ["/map", "/master", "/copybook", "/aritcleWorks","/search","/profile","/user"];
+  const darkPagePrefixes = ["/map", "/master", "/copybook", "/aritcleWorks","/search","/profile","/user","/dictionary"];
 
   // 3. 使用 startsWith 进行前缀匹配
   const isDarkHeader =
@@ -52,11 +51,10 @@ const HeaderMenu: React.FC = () => {
 
   // 菜单配置
   const menus = [
-    { key: "/", label: "首页", icon: <HomeOutlined /> },
     { key: "/copybook", label: "碑帖字库", icon: <BookOutlined /> },
     { key: "/map", label: "书家列传", icon: <CompassOutlined /> },
-    { key: "/agent", label: "小墨Agent", icon: <RobotOutlined /> },
     { key: "/dictionary", label: "书法字典", icon: <EditOutlined /> },
+    { key: "/agent", label: "小墨Agent", icon: <RobotOutlined /> },
     { key: "/more", label: "更多", icon: <EllipsisOutlined /> },
   ];
 

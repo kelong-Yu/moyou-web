@@ -28,6 +28,7 @@ import { useHandWavePager } from "../../hooks/useHandWavePager";
 import PractiseToolbox from "./components/PractiseToolbox";
 import PractiseImageLightbox from "./components/PractiseImageLightbox";
 import GesturePagerPanel from "./components/GesturePagerPanel";
+import GesturePrivacyNotice from "./components/GesturePrivacyNotice";
 import CharacterFavoriteCard from "../UserProfile/components/CharacterFavoriteCard";
 
 /**
@@ -343,9 +344,7 @@ const CopybookPractise = () => {
     const stripLoading =
         initLoading ||
         pagePreviews.some((preview) => {
-            const src = preview.thumbnailUrl
-                ? `/api${preview.thumbnailUrl}`
-                : preview.url;
+            const src = preview.thumbnailUrl || preview.url;
             return src != null && !loadedThumbSrcs.has(src);
         });
 
@@ -534,10 +533,10 @@ const CopybookPractise = () => {
         loadCharacters(page, searchKeyword);
     };
 
-    // ==================== 手势翻页（摄像头左右挥手） ====================
+    // ==================== 手势翻页（摄像头上下挥腕） ====================
     // 手势功能绑定全屏大图查看器：
     // 开启时先进入大图查看器（未打开则默认打开单字卡片查看器），
-    // 再申请摄像头权限，挥手切换查看器的"上一张 / 下一张"。
+    // 再弹隐私提示，确认后才申请摄像头权限，挥腕切换查看器的"上一张 / 下一张"。
 
     /** 手势翻页开关（工具箱"手势翻页"与左侧工具栏手势按钮共用） */
     const [gestureOn, setGestureOn] = useState(false);
@@ -550,9 +549,9 @@ const CopybookPractise = () => {
         : 0;
 
     /**
-     * 挥手 → 上一张 / 下一张：
+     * 挥腕 → 上一张 / 下一张：
      * 直接复用查看器的 handleLightboxIndexChange，不重新实现切换逻辑：
-     * - 向左挥 = 下一张，向右挥 = 上一张；
+     * - 向下挥腕 = 下一张，向上挥腕 = 上一张；
      * - 第一张 / 最后一张继续挥动被忽略，不会产生越界序号；
      * - 切换后选中单字、页面预览等状态仍按原有逻辑更新；
      * - 查看器按钮与键盘翻页不受影响。
@@ -568,17 +567,19 @@ const CopybookPractise = () => {
     };
 
     const handWavePager = useHandWavePager({
-        onSwipeLeft: handleGestureNext,
-        onSwipeRight: handleGesturePrev,
+        onSwipeUp: handleGesturePrev,
+        onSwipeDown: handleGestureNext,
     });
 
+    /** 隐私提示弹窗：确认后才真正申请摄像头并开启识别 */
+    const [privacyOpen, setPrivacyOpen] = useState(false);
+
     /**
-     * 开启 / 停止手势翻页
+     * 点击「隔空翻页」：只做前置校验并弹隐私提示，不动查看器
      *
-     * 开启：先保证全屏大图查看器已打开
-     * （默认打开单字卡片查看器并定位当前选中单字，
-     * 无单字时回退碑帖原页查看器），随后才申请摄像头权限；
-     * 停止：仅关闭摄像头识别，查看器保持打开。
+     * 查看器必须等用户确认后再打开——先开查看器会让 Modal（z-index 1000）
+     * 被查看器遮罩（z-[9999]）压住，用户看不到提示却已经进了大图。
+     * 停止：关闭摄像头识别，查看器保持打开。
      */
     const toggleGesturePager = () => {
         if (gestureOn) {
@@ -587,12 +588,35 @@ const CopybookPractise = () => {
             return;
         }
 
+        // 手势翻页只作用于大图查看器，先确认有内容可看
+        if (
+            !lightbox &&
+            !selectedCharacter?.imageUrl &&
+            pagePreviews.length === 0
+        ) {
+            message.warning("当前碑帖暂无可查看的大图内容");
+            return;
+        }
+
+        setPrivacyOpen(true);
+    };
+
+    /**
+     * 隐私提示里点「开启」：先进大图查看器，再启动摄像头识别
+     *
+     * 默认打开单字卡片查看器并定位当前选中单字，无单字时回退碑帖原页查看器；
+     * 已在查看器中（从查看器内再次开启）则保持当前序列不动。
+     */
+    const confirmGesturePager = () => {
+        setPrivacyOpen(false);
+
         if (!lightbox) {
             if (selectedCharacter?.imageUrl) {
                 handleOpenCharacterLightbox();
             } else if (pagePreviews.length > 0) {
                 handleOpenPageLightbox(0);
             } else {
+                // 提示停留期间数据被重置：不启动识别，也不开空的查看器
                 message.warning("当前碑帖暂无可查看的大图内容");
                 return;
             }
@@ -602,7 +626,7 @@ const CopybookPractise = () => {
         void handWavePager.start();
     };
 
-    /** 面板上的"停止 / 关闭"：停止摄像头，查看器保持原样 */
+    /** 面板右上角关闭：停止摄像头识别，查看器保持原样 */
     const closeGesturePager = () => {
         handWavePager.stop();
         setGestureOn(false);
@@ -776,9 +800,7 @@ const CopybookPractise = () => {
                     ) : (
                         <div className="w-max max-w-full h-full mx-auto flex items-center gap-3 px-3 py-2.5">
                             {pagePreviews.map((preview, index) => {
-                                const src = preview.thumbnailUrl
-                                    ? `/api${preview.thumbnailUrl}`
-                                    : preview.url;
+                                const src = preview.thumbnailUrl || preview.url;
 
                                 return (
                                     <button
@@ -1194,8 +1216,8 @@ const CopybookPractise = () => {
                 </div>
             </main>
 
-            {/* ==================== 手势翻页状态面板（大图查看器顶部居中） ==================== */}
-            {gestureOn && (
+            {/* ==================== 手势翻页状态面板（只在大图查看器内出现） ==================== */}
+            {gestureOn && lightbox && (
                 <GesturePagerPanel
                     videoRef={handWavePager.videoRef}
                     status={handWavePager.status}
@@ -1204,6 +1226,13 @@ const CopybookPractise = () => {
                     onStop={closeGesturePager}
                 />
             )}
+
+            {/* ==================== 进入手势翻页前的隐私提示 ==================== */}
+            <GesturePrivacyNotice
+                open={privacyOpen}
+                onCancel={() => setPrivacyOpen(false)}
+                onConfirm={confirmGesturePager}
+            />
 
             {/* ==================== 全屏大图查看器 ==================== */}
             {/* 当前页内打开（不新开浏览器窗口、不跳转路由），

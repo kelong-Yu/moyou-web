@@ -1,31 +1,67 @@
 /* =========================================================
    手势翻页状态面板样式
 
-   目前仅包含挥手成功反馈的闪现动画：
-   淡入 → 停留 → 淡出，结束后保持隐藏（forwards），
-   下一次挥手由 React 以时间戳为 key 重挂载元素重播动画。
+   面板不展示摄像头画面，只承担状态反馈：
+   - .gesture-scan  识别中的眼睛图标：呼吸缩放 + 扫描线上下掠过
+   - .gesture-pop   命中手势时手形图标的弹入
+   - .gesture-panel 内收敛 MoyouLoading 的空提示占位
    ========================================================= */
 
-.gesture-swipe-flash {
-    animation: gesture-swipe-flash 0.9s ease-out forwards;
+/* MoyouLoading 在面板里只取图标，空 <p> 不应占位 */
+.gesture-panel .moyou-loading--compact .moyou-loading__tip:empty {
+    display: none;
 }
 
-@keyframes gesture-swipe-flash {
+.gesture-panel .moyou-loading--compact {
+    gap: 0;
+    padding: 0;
+}
+
+/* 识别中：眼睛呼吸 + 扫描线 */
+.gesture-scan {
+    position: relative;
+    animation: gesture-scan-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes gesture-scan-breathe {
+    0%,
+    100% {
+        opacity: 0.55;
+        transform: scale(0.94);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.06);
+    }
+}
+
+/* 命中手势：手形弹入
+   （手指朝下的提示用 Tailwind 的 rotate-180，走独立 rotate 属性，
+     与这里的 transform 缩放动画天然叠加，无需再写一份翻转关键帧） */
+.gesture-pop {
+    animation: gesture-pop-in 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes gesture-pop-in {
     0% {
         opacity: 0;
-        transform: translateY(4px);
-    }
-
-    12% {
-        opacity: 1;
-        transform: none;
-    }
-
-    75% {
-        opacity: 1;
+        transform: scale(0.6) translateY(6px);
     }
 
     100% {
-        opacity: 0;
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gesture-scan,
+    .gesture-pop {
+        animation: none;
+    }
+
+    .gesture-scan {
+        opacity: 1;
     }
 }

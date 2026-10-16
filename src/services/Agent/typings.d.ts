@@ -51,6 +51,11 @@ declare namespace API {
         title: string;
 
         /**
+         * 是否置顶：1-置顶 0-普通
+         */
+        isTop: number;
+
+        /**
          * 最后更新时间
          */
         updateTime: string;

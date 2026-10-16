@@ -19,8 +19,8 @@ export type GesturePagerStatus =
     | "denied"
     | "error";
 
-/** 挥手方向（以用户镜像画面中的视觉方向为准） */
-export type SwipeDirection = "left" | "right";
+/** 挥手方向（以画面中的视觉方向为准：y 轴向下为正） */
+export type SwipeDirection = "up" | "down";
 
 /** 一次成功触发的手势记录 */
 export interface SwipeEvent {
@@ -30,10 +30,10 @@ export interface SwipeEvent {
 }
 
 export interface UseHandWavePagerOptions {
-    /** 用户向左挥动（镜像视觉方向）：语义由调用方绑定（当前为下一张） */
-    onSwipeLeft: () => void;
-    /** 用户向右挥动（镜像视觉方向）：语义由调用方绑定（当前为上一张） */
-    onSwipeRight: () => void;
+    /** 用户向上挥动手腕（画面中手腕上移）：语义由调用方绑定（当前为上一张） */
+    onSwipeUp: () => void;
+    /** 用户向下挥动手腕（画面中手腕下移）：语义由调用方绑定（当前为下一张） */
+    onSwipeDown: () => void;
 }
 
 // ==================================================
@@ -43,8 +43,13 @@ export interface UseHandWavePagerOptions {
 /** 识别节流间隔（毫秒），约每秒 14 次，避免逐帧识别拖慢页面 */
 const DETECT_INTERVAL_MS = 70;
 
-/** 水平位移阈值：占画面宽度比例（18%） */
-const WAVE_DISPLACEMENT_RATIO = 0.18;
+/**
+ * 垂直位移阈值：占画面高度比例
+ *
+ * 上下挥腕的活动幅度比左右挥臂小，阈值取得比水平版略低；
+ * 仍靠"窗口内单向累计位移"过滤手停留与抖动。
+ */
+const WAVE_DISPLACEMENT_RATIO = 0.15;
 
 /**
  * 手势时间窗口（毫秒）
@@ -141,22 +146,22 @@ export function disposeHandLandmarker() {
 const WRIST_LANDMARK_INDEX = 0;
 
 interface TrailPoint {
-    /** 镜像修正后的水平坐标（0 ~ 1） */
-    x: number;
+    /** 垂直坐标（0 ~ 1，MediaPipe 原图坐标，y 向下为正） */
+    y: number;
     /** performance.now() 时间戳 */
     t: number;
 }
 
 /**
- * 手部左右挥手翻页 Hook
+ * 手部上下挥腕翻页 Hook
  *
  * 基于 @mediapipe/tasks-vision 的 HandLandmarker（VIDEO 模式）：
  *
  * 1. getUserMedia 打开前置摄像头；
  * 2. requestAnimationFrame 循环 + 节流（约 14 次/秒）做手部检测；
- * 3. 取手腕水平坐标（镜像修正后）在 600ms 滑动窗口内的
- *    最大单向左位移，超过画面宽度 18% 判定为一次挥手：
- *    向左挥 → onSwipeLeft（下一张），向右挥 → onSwipeRight（上一张）；
+ * 3. 取手腕垂直坐标（MediaPipe 原图 y，向下为正，无需镜像修正）
+ *    在 600ms 滑动窗口内的最大单向位移，超过画面高度 15% 判定为一次挥腕：
+ *    向下挥 → onSwipeDown（下一张），向上挥 → onSwipeUp（上一张）；
  * 4. 触发后立即清空轨迹并进入 900ms 冷却，
  *    手停留、抖动、噪声、连续检测同一动作都不会重复翻页；
  *    检测不到手时重置轨迹；
@@ -164,7 +169,8 @@ interface TrailPoint {
  *    清空 video 元素，绝不残留摄像头占用。
  *
  * 调用方需渲染 <video ref={videoRef} muted playsInline />，
- * 并在调用 start() 前保证该元素已挂载。
+ * 并在调用 start() 前保证该元素已挂载
+ * （面板已不展示预览画面，但 video 元素必须保留供识别取帧）。
  */
 export function useHandWavePager(options: UseHandWavePagerOptions) {
     /** 供调用方挂到预览 <video> 上 */
@@ -248,12 +254,12 @@ export function useHandWavePager(options: UseHandWavePagerOptions) {
             return;
         }
 
-        // 镜像修正：预览画面做了水平镜像，用户感知的水平坐标 = 1 - 原始 x。
-        // 这样"用户向自己左侧挥"在镜像画面中就是向左移动，方向与页面行为一致。
-        const mirroredX = 1 - hand[WRIST_LANDMARK_INDEX].x;
+        // 镜像修正只影响水平方向；预览虽做了水平镜像，
+        // 垂直坐标不受影响，直接取 MediaPipe 原图 y（向下为正）。
+        const y = hand[WRIST_LANDMARK_INDEX].y;
 
         const trail = trailRef.current;
-        trail.push({ x: mirroredX, t: now });
+        trail.push({ y, t: now });
 
         // 滑动窗口裁剪：只保留窗口期内的轨迹
         while (trail.length > 0 && now - trail[0].t > WAVE_WINDOW_MS) {
@@ -262,25 +268,27 @@ export function useHandWavePager(options: UseHandWavePagerOptions) {
 
         if (trail.length < 2) return;
 
-        // 统计窗口内"先高后低的左向最大位移"与"先低后高的右向最大位移"
-        let runMax = -Infinity;
+        // y 向下为正：
+        // 向下挥 = 从窗口内最靠上（y 最小）的位置继续往下走；
+        // 向上挥 = 从窗口内最靠下（y 最大）的位置继续往上走。
         let runMin = Infinity;
-        let leftDrop = 0;
-        let rightRise = 0;
+        let runMax = -Infinity;
+        let downTravel = 0;
+        let upTravel = 0;
 
         for (const point of trail) {
-            runMax = Math.max(runMax, point.x);
-            runMin = Math.min(runMin, point.x);
-            leftDrop = Math.max(leftDrop, runMax - point.x);
-            rightRise = Math.max(rightRise, point.x - runMin);
+            runMin = Math.min(runMin, point.y);
+            runMax = Math.max(runMax, point.y);
+            downTravel = Math.max(downTravel, point.y - runMin);
+            upTravel = Math.max(upTravel, runMax - point.y);
         }
 
-        const displacement = Math.max(leftDrop, rightRise);
+        const displacement = Math.max(downTravel, upTravel);
 
         // 位移不足阈值：手停留 / 轻微抖动 / 检测噪声都不会触发
         if (displacement < WAVE_DISPLACEMENT_RATIO) return;
 
-        // 冷却期内忽略，保证一次挥手最多触发一次翻页
+        // 冷却期内忽略，保证一次挥腕最多触发一次翻页
         if (now - lastSwipeAtRef.current < SWIPE_COOLDOWN_MS) return;
 
         lastSwipeAtRef.current = now;
@@ -288,14 +296,14 @@ export function useHandWavePager(options: UseHandWavePagerOptions) {
         trailRef.current = [];
 
         const direction: SwipeDirection =
-            leftDrop >= rightRise ? "left" : "right";
+            downTravel >= upTravel ? "down" : "up";
 
         setLastSwipe({ direction, at: now });
 
-        if (direction === "left") {
-            callbacksRef.current.onSwipeLeft();
+        if (direction === "down") {
+            callbacksRef.current.onSwipeDown();
         } else {
-            callbacksRef.current.onSwipeRight();
+            callbacksRef.current.onSwipeUp();
         }
     }
 
