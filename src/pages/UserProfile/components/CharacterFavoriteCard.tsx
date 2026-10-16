@@ -12,16 +12,21 @@ import moyouSeal from "../../../assets/moyoucard.png";
  * 复用时可覆盖点击行为与卡片尺寸
  * （如临帖页全屏大图查看器中展示单字卡片）：
  * onClick 传入后不再跳转临帖页；
- * sizeClassName 传入后替换默认 w-46 h-70 尺寸。
+ * sizeClassName 传入后替换默认 w-46 h-70 尺寸；
+ * onCopybookClick 传入后，仅《碑帖名》一小块可单独点击（阻止冒泡），
+ * 卡片其余区域仍走 onClick。
  */
 const CharacterFavoriteCard = ({
     item,
     onClick,
+    onCopybookClick,
     sizeClassName,
 }: {
     item: API.CharacterFavoriteItem;
     /** 点击回调；不传则默认跳转对应碑帖的临帖页 */
     onClick?: () => void;
+    /** 单独点击《碑帖名》时的回调；不传则该文字不可单独点击 */
+    onCopybookClick?: () => void;
     /** 根节点尺寸类名，默认 "w-46 h-70" */
     sizeClassName?: string;
 }) => {
@@ -78,11 +83,22 @@ const CharacterFavoriteCard = ({
                         {item.characterText || "未识别"}
                     </span>
                     <span className="text-gray-400 mx-1.5">·</span>
-                    <span className="text-[#964328]">
-                        《{item.copybookName || "未知碑帖"}》
-                    </span>
-                    
-                    
+                    {onCopybookClick ? (
+                        <span
+                            onClick={(event) => {
+                                // 只让碑帖名这一小块生效，不触发整卡的 onClick
+                                event.stopPropagation();
+                                onCopybookClick();
+                            }}
+                            className="text-[#964328] cursor-pointer hover:underline"
+                        >
+                            《{item.copybookName || "未知碑帖"}》
+                        </span>
+                    ) : (
+                        <span className="text-[#964328]">
+                            《{item.copybookName || "未知碑帖"}》
+                        </span>
+                    )}
                 </p>
 
                 <p className="text-xs text-gray-500 mb-3">

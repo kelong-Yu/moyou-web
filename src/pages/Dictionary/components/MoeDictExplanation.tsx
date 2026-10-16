@@ -2,6 +2,7 @@ import { LinkOutlined } from "@ant-design/icons";
 import MoyouLoading from "../../../components/MoyouLoading";
 import {
     moedictEntryUrl,
+    type MoedictDefinition,
     type MoedictEntry,
 } from "../../../services/dictionary/moedict";
 
@@ -17,25 +18,33 @@ export interface MoeDictExplanationProps {
 }
 
 /**
- * 汉字释义区域（萌典 MoeDict）
+ * 最多展示的义项条数
  *
- * 按萌典 raw 端点真实字段渲染：
- * 读音（pinyin / bopomofo）、部首（radical）、
- * 笔画数（stroke_count / non_radical_stroke_count）、
- * 义项（heteronyms[].definitions[]：词性 type + 释义 def +
- * 书证 quote + 例句 example）。
+ * 萌典对常用字（如「蘭」「一」）会返回几十条义项，
+ * 而卡片最大高度是固定的，全量渲染会把版面撑爆，
+ * 因此只取最靠前的几条，其余在正文末尾说明条数并引导去原词条看全量。
+ */
+const MAX_DEFINITIONS = 4;
+
+/** 每条义项最多展示的书证条数 */
+const MAX_QUOTES = 1;
+
+/**
+ * 汉字释义卡（萌典 MoeDict）
  *
- * 字段缺失时仅隐藏对应项；释义文本保持萌典原始繁体内容，
- * 全部按纯文本渲染（不使用 innerHTML）；
- * 底部标注来源并链接到萌典对应词条页。
+ * 暗底居中排版：字头大字 → 读音 / 部首 / 笔画元信息行 → 义项列表。
+ * 义项按 MAX_DEFINITIONS 截断，卡片整体最大高度固定、仅正文区可滚动；
+ * 字段缺失时只隐藏对应项；释义保持萌典原始繁体内容，
+ * 全部按纯文本渲染（不使用 innerHTML）；底部保留来源与原词条链接。
  */
 const MoeDictExplanation = ({ char, state, entry }: MoeDictExplanationProps) => {
     // ==================== 非正常状态 ====================
     if (state === "loading") {
         return (
-            <div className="rounded-xl border border-[#964328]/15 bg-white/70 shadow-sm p-4">
-                <div className="h-28">
+            <div className="dict-explain dict-explain--state">
+                <div className="h-28 w-full">
                     <MoyouLoading
+                        dark
                         className="moyou-loading--compact"
                         tip="正在查询释义……"
                     />
@@ -46,160 +55,128 @@ const MoeDictExplanation = ({ char, state, entry }: MoeDictExplanationProps) => 
 
     if (state === "notFound") {
         return (
-            <div className="rounded-xl border border-[#964328]/15 bg-white/70 shadow-sm px-5 py-6 text-center">
-                <p className="text-sm text-[#756B61]">暂未获取到该字的释义</p>
+            <div className="dict-explain dict-explain--state">
+                暂未获取到「{char}」的释义
             </div>
         );
     }
 
     if (state === "error" || !entry) {
         return (
-            <div className="rounded-xl border border-[#964328]/15 bg-white/70 shadow-sm px-5 py-6 text-center">
-                <p className="text-sm text-[#756B61]">
-                    释义服务暂时不可用，不影响下方书法作品的浏览
-                </p>
+            <div className="dict-explain dict-explain--state">
+                释义服务暂时不可用
             </div>
         );
     }
 
-    // ==================== 词条展示 ====================
+    // ==================== 义项截断 ====================
     // 多音字时在每个义项组前标注对应读音；单音不重复展示
     const multiPronunciation = entry.heteronyms.length > 1;
 
+    const groups: { pron: string; definitions: MoedictDefinition[] }[] = [];
+    let used = 0;
+    let totalCount = 0;
+
+    for (const heteronym of entry.heteronyms) {
+        totalCount += heteronym.definitions.length;
+
+        if (used >= MAX_DEFINITIONS) continue;
+
+        const taken = heteronym.definitions.slice(0, MAX_DEFINITIONS - used);
+        used += taken.length;
+
+        groups.push({
+            pron: [heteronym.pinyin, heteronym.bopomofo]
+                .filter(Boolean)
+                .join(" · "),
+            definitions: taken,
+        });
+    }
+
+    const omitted = Math.max(0, totalCount - used);
+
+    // ==================== 词条展示 ====================
     return (
-        <div className="rounded-xl border border-[#964328]/15 bg-white/70 shadow-sm px-5 py-5 md:px-7 md:py-6">
-            {/* 字头：大字 + 读音 / 部首 / 笔画 */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-7">
-                <span className="text-6xl md:text-7xl font-bold text-[#3F332A] leading-none select-none">
-                    {entry.title || char}
-                </span>
+        <div className="dict-explain font-serif">
+            <div className="dict-explain__char">{entry.title || char}</div>
 
-                <div className="min-w-0 space-y-1.5 text-sm">
-                    {/* 简繁输入与词条字头不一致时的说明（如输入「龙」命中繁体字头「龍」） */}
-                    {entry.title && entry.title !== char && (
-                        <p className="text-[13px] text-[#964328]">
-                            词条字头为「{entry.title}」，与输入字「{char}
-                            」为简繁对应
-                        </p>
-                    )}
+            {/* 简繁输入与词条字头不一致时的说明（如输入「龙」命中繁体字头「龍」） */}
+            {entry.title && entry.title !== char && (
+                <p className="dict-explain__variant">
+                    词条字头为「{entry.title}」，与输入字「{char}」为简繁对应
+                </p>
+            )}
 
-                    {(entry.pinyinList.length > 0 ||
-                        entry.bopomofoList.length > 0) && (
-                        <p className="text-[#3F332A]">
-                            {entry.pinyinList.length > 0 && (
-                                <>
-                                    <span className="text-[#756B61]">
-                                        拼音：
-                                    </span>
-                                    {entry.pinyinList.join(" / ")}
-                                </>
-                            )}
-                            {entry.bopomofoList.length > 0 && (
-                                <span className="ml-4">
-                                    <span className="text-[#756B61]">
-                                        注音：
-                                    </span>
-                                    {entry.bopomofoList.join(" / ")}
-                                </span>
-                            )}
-                        </p>
-                    )}
-
-                    {(entry.radical ||
-                        entry.strokeCount != null) && (
-                        <p className="text-[#3F332A]">
-                            {entry.radical && (
-                                <>
-                                    <span className="text-[#756B61]">
-                                        部首：
-                                    </span>
-                                    {entry.radical}
-                                </>
-                            )}
-                            {entry.strokeCount != null && (
-                                <span className="ml-4">
-                                    <span className="text-[#756B61]">
-                                        笔画：
-                                    </span>
-                                    {entry.strokeCount}
-                                    {entry.nonRadicalStrokeCount != null
-                                        ? `（部外 ${entry.nonRadicalStrokeCount}）`
-                                        : ""}
-                                </span>
-                            )}
-                        </p>
-                    )}
-                </div>
+            <div className="dict-explain__meta">
+                {entry.pinyinList.length > 0 && (
+                    <span>{entry.pinyinList.join(" / ")}</span>
+                )}
+                {entry.bopomofoList.length > 0 && (
+                    <span>{entry.bopomofoList.join(" / ")}</span>
+                )}
+                {entry.radical && <span>部首：{entry.radical}</span>}
+                {entry.strokeCount != null && (
+                    <span>
+                        {entry.strokeCount} 画
+                        {entry.nonRadicalStrokeCount != null
+                            ? `（部外 ${entry.nonRadicalStrokeCount}）`
+                            : ""}
+                    </span>
+                )}
             </div>
 
-            {/* 义项列表 */}
-            <div className="mt-5 space-y-4">
-                {entry.heteronyms.map((heteronym, hIndex) => (
-                    <div
-                        key={hIndex}
-                        className="space-y-2.5"
-                    >
-                        {multiPronunciation && (heteronym.pinyin ||
-                            heteronym.bopomofo) && (
-                            <p className="text-sm font-bold text-[#964328]">
-                                {[heteronym.pinyin, heteronym.bopomofo]
-                                    .filter(Boolean)
-                                    .join(" · ")}
-                            </p>
+            <div className="dict-explain__body">
+                {groups.map((group, groupIndex) => (
+                    <div className="dict-explain__group" key={groupIndex}>
+                        {multiPronunciation && group.pron && (
+                            <p className="dict-explain__pron">{group.pron}</p>
                         )}
 
-                        {heteronym.definitions.map((definition, dIndex) => (
+                        {group.definitions.map((definition, dIndex) => (
                             <div key={dIndex}>
-                                <p className="text-[15px] leading-7 text-[#3F332A]">
+                                <p className="dict-explain__item">
                                     {definition.type && (
-                                        <span className="inline-block mr-2 align-middle px-1.5 py-0.5 rounded text-xs bg-[#964328]/10 text-[#964328] border border-[#964328]/25">
+                                        <span className="dict-explain__type">
                                             {definition.type}
                                         </span>
                                     )}
                                     {definition.def}
                                 </p>
 
-                                {/* 书证 */}
-                                {definition.quote &&
-                                    definition.quote.length > 0 && (
-                                        <div className="mt-1 space-y-0.5">
-                                            {definition.quote.map(
-                                                (quote, qIndex) => (
-                                                    <p
-                                                        key={qIndex}
-                                                        className="text-[13px] leading-6 text-[#8B8178] pl-1 border-l-2 border-[#964328]/20 ml-0.5"
-                                                    >
-                                                        {quote}
-                                                    </p>
-                                                )
-                                            )}
-                                        </div>
-                                    )}
+                                {(definition.quote?.length ?? 0) > 0 && (
+                                    <p className="dict-explain__cite">
+                                        {definition
+                                            .quote!.slice(0, MAX_QUOTES)
+                                            .join("　")}
+                                    </p>
+                                )}
 
-                                {/* 例句 */}
-                                {definition.example &&
-                                    definition.example.length > 0 && (
-                                        <p className="mt-1 text-[13px] leading-6 text-[#8B8178]">
-                                            {definition.example.join(" ")}
-                                        </p>
-                                    )}
+                                {(definition.example?.length ?? 0) > 0 && (
+                                    <p className="dict-explain__cite">
+                                        {definition.example!.join(" ")}
+                                    </p>
+                                )}
                             </div>
                         ))}
                     </div>
                 ))}
+
+                {omitted > 0 && (
+                    <p className="dict-explain__more">
+                        另有 {omitted} 条释义未展示（共 {totalCount} 条）
+                    </p>
+                )}
             </div>
 
-            {/* 来源标注 */}
-            <p className="mt-5 pt-3 border-t border-[#964328]/10 text-xs text-[#8B8178] flex flex-wrap items-center gap-1">
-                <span>释义来源：萌典 MoeDict（原文保留繁体）</span>
+            <p className="dict-explain__source">
+                释义来源：萌典 MoeDict（原文保留繁体）
                 <a
                     href={moedictEntryUrl(entry.title || char)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[#964328] hover:underline"
+                    className="dict-explain__link"
                 >
-                    <LinkOutlined />
-                    查看原词条
+                    <LinkOutlined /> 查看原词条
                 </a>
             </p>
         </div>

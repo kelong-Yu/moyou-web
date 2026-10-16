@@ -1,0 +1,577 @@
+/* =========================================================
+   书法字典 · 页头 Hero
+   兰亭序底图 + 暗色遮罩（与碑帖书库 / 书家列传同色系）
+   + 上半圆旋转字环（下半隐藏、半径拉长）+ 栏内搜索按钮
+   ========================================================= */
+
+.dict-hero {
+  /* 双环几何统一在此微调：半径 / 环心沉入地平线深度
+     （字环与金色弧轨共用这组变量） */
+  --inner-radius: 300px;
+  --inner-sink: 60px;
+  --outer-radius: 560px;
+  --outer-sink: 180px;
+  position: relative;
+  z-index: 1;
+  height: 60vh;
+  min-height: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(
+    120% 85% at 50% 12%,
+    #2b211a 0%,
+    #1a1410 52%,
+    #0f0c0a 100%
+  );
+  /* 底部内阴影：只在暗区内部压暗收尾，无外投影悬浮感 */
+  box-shadow: inset 0 -28px 48px -24px rgba(0, 0, 0, 0.6);
+}
+
+/* 中心暖金晕光：保证暗底上标题 / 搜索栏的可读性 */
+.dict-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: radial-gradient(
+    42% 36% at 50% 44%,
+    rgba(255, 214, 150, 0.1),
+    rgba(255, 214, 150, 0) 72%
+  );
+}
+
+/* 兰亭序底图：铺满 Hero，居中裁切，位于暗色遮罩之下
+   （background-image 由组件内联注入，便于走 Vite 资源指纹） */
+.dict-hero__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center 30%;
+  background-repeat: no-repeat;
+}
+
+/* 暗色遮罩：压在底图之上，保留底图笔势但不抢文字对比度 */
+.dict-hero__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 85% at 50% 12%,
+    rgba(43, 33, 26, 0.82) 0%,
+    rgba(26, 20, 16, 0.9) 52%,
+    rgba(15, 12, 10, 0.96) 100%
+  );
+}
+
+/* =========================================================
+   半圆旋转字环
+   环心沉在 Hero 底缘（地平线）之下，只露上半圆弧；
+   裁剪层负责溢出隐藏 + 接近地平线时渐隐，
+   字卡转到下半圆即沉入暗色，形成「下半隐藏」的半圆环。
+   外层 .dict-ring 匀速正转带动字卡公转，字卡反向自转
+   抵消公转角度保持字面正立，再叠加固定倾斜 / 缩放。
+   ========================================================= */
+
+.dict-ring-clip {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 68%, transparent 97%);
+  mask-image: linear-gradient(to bottom, #000 68%, transparent 97%);
+}
+
+/* 微调指南：
+   --ring-radius 环半径；--ring-sink 环心沉入地平线以下的深度
+   （sink 越大露出的圆弧越短）；animation 时长控制转速。 */
+.dict-ring {
+  position: absolute;
+  left: 50%;
+  width: 0;
+  height: 0;
+}
+
+/* 内环：半径小、顺时针；环心略沉于地平线之下 */
+.dict-ring--inner {
+  --ring-radius: var(--inner-radius);
+  --ring-sink: var(--inner-sink);
+  bottom: calc(var(--ring-sink) * -1);
+  animation: dict-ring-spin 64s linear infinite;
+}
+
+/* 外环：半径大、逆时针；环心深沉，仅露顶部一段圆弧 */
+.dict-ring--outer {
+  --ring-radius: var(--outer-radius);
+  --ring-sink: var(--outer-sink);
+  bottom: calc(var(--ring-sink) * -1);
+  animation: dict-ring-spin-back 96s linear infinite;
+}
+
+/* =========================================================
+   淡金分段弧轨：不再是整圈，而是每两张相邻字卡之间一段短弧
+   SVG 画在 .dict-ring 内部，跟着字卡一起公转，
+   分段位置由 JS 按字卡数算 stroke-dasharray 对齐到每段正中。
+   viewBox 固定 200×200（r=100），靠 CSS 尺寸缩放到真实半径。
+   ========================================================= */
+
+.dict-ring-arc {
+  position: absolute;
+  left: calc(var(--ring-radius) * -1);
+  top: calc(var(--ring-radius) * -1);
+  width: calc(var(--ring-radius) * 2);
+  height: calc(var(--ring-radius) * 2);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.dict-ring-arc circle {
+  fill: none;
+  stroke: rgba(216, 186, 134, 0.4);
+  stroke-width: 0.7;
+  stroke-linecap: round;
+}
+
+/* 外环更远更淡，避免与内环抢视线 */
+.dict-ring--outer .dict-ring-arc circle {
+  stroke: rgba(216, 186, 134, 0.26);
+}
+
+/* 外环字卡略小略透，制造远层层次；自转方向与外环公转相反 */
+.dict-ring--outer .dict-ring__card {
+  left: -38px;
+  top: -38px;
+  width: 76px;
+  height: 76px;
+  opacity: 0.85;
+  animation-name: dict-ring-card-fwd;
+  animation-duration: 96s;
+}
+
+.dict-ring__item {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: rotate(calc(var(--i) * var(--step))) translateY(var(--ring-radius));
+}
+
+.dict-ring__card {
+  position: absolute;
+  left: -44px;
+  top: -44px;
+  width: 88px;
+  height: 88px;
+  padding: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 248, 237, 0.22);
+  border-radius: 10px;
+  background: linear-gradient(160deg, #fffcf3 0%, #f3ead8 100%);
+  box-shadow:
+    0 14px 30px -12px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+  opacity: 0.96;
+  animation: dict-ring-card-rev 64s linear infinite;
+}
+
+.dict-ring__card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@keyframes dict-ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 反向自转：keyframes 内叠加静态抵消角 + 倾斜 + 缩放 */
+@keyframes dict-ring-card-rev {
+  from {
+    transform: rotate(0deg) rotate(calc(var(--i) * var(--step) * -1))
+      rotate(var(--tilt)) scale(var(--s));
+  }
+  to {
+    transform: rotate(-360deg) rotate(calc(var(--i) * var(--step) * -1))
+      rotate(var(--tilt)) scale(var(--s));
+  }
+}
+
+/* 外环公转：逆时针 */
+@keyframes dict-ring-spin-back {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+/* 外环字卡正向自转：抵消逆时针公转，保持字面正立 */
+@keyframes dict-ring-card-fwd {
+  from {
+    transform: rotate(0deg) rotate(calc(var(--i) * var(--step) * -1))
+      rotate(var(--tilt)) scale(var(--s));
+  }
+  to {
+    transform: rotate(360deg) rotate(calc(var(--i) * var(--step) * -1))
+      rotate(var(--tilt)) scale(var(--s));
+  }
+}
+
+/* =========================================================
+   白色搜索栏：查询按钮嵌在栏内右侧（参考碑帖书库搜索条）
+   ========================================================= */
+
+.dict-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 28px;
+  padding: 6px 6px 6px 18px;
+  background: rgba(255, 252, 245, 0.96);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.55);
+}
+
+.dict-search-bar__prefix {
+  color: rgba(150, 67, 40, 0.55);
+  font-size: 16px;
+}
+
+.dict-search-input.ant-input-affix-wrapper {
+  flex: 1;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 4px 8px;
+}
+
+.dict-search-input.ant-input-affix-wrapper:hover,
+.dict-search-input.ant-input-affix-wrapper-focused {
+  border: none;
+  box-shadow: none;
+}
+
+.dict-search-input .ant-input {
+  background: transparent;
+  color: #3f332a;
+}
+
+.dict-search-input .ant-input::placeholder {
+  color: #b8afa4;
+}
+
+.dict-search-btn.ant-btn-primary {
+  background: #b85c47;
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 8px 18px -8px rgba(184, 92, 71, 0.8);
+}
+
+.dict-search-btn.ant-btn-primary:not(:disabled):hover {
+  background: #a34f3c;
+}
+
+/* =========================================================
+   响应式 & 动效降级
+   ========================================================= */
+
+@media (max-width: 640px) {
+  .dict-hero {
+    min-height: 440px;
+    --inner-radius: 190px;
+    --inner-sink: 40px;
+    --outer-radius: 340px;
+    --outer-sink: 110px;
+  }
+
+  .dict-ring__card {
+    left: -31px;
+    top: -31px;
+    width: 62px;
+    height: 62px;
+    padding: 5px;
+    border-radius: 8px;
+  }
+
+  .dict-ring--outer .dict-ring__card {
+    left: -28px;
+    top: -28px;
+    width: 56px;
+    height: 56px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dict-ring--inner,
+  .dict-ring--outer,
+  .dict-ring__card {
+    animation: none;
+  }
+
+  /* 静态展示：字卡保持正立微倾 */
+  .dict-ring__card {
+    transform: rotate(calc(var(--i) * var(--step) * -1)) rotate(var(--tilt))
+      scale(var(--s));
+  }
+}
+
+/* =========================================================
+   书法字典 · 每日书论
+   仿线装书版框竖排：writing-mode: vertical-rl 天然右起，
+   首列（最右）朱色书名、次列朝代作者，正文自右向左成列，
+   末列（最左）中文日期落款靠下排布。
+   正文超出固定高度时向书口方向（左）滚动。
+   ========================================================= */
+
+.dict-discourse {
+  background: #fff;
+  border: 1px solid rgba(150, 67, 40, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(63, 51, 42, 0.05);
+  padding: 20px 24px 24px;
+}
+
+.dict-discourse__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dict-discourse__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #3f332a;
+}
+
+.dict-discourse__source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #964328;
+  transition: color 0.2s;
+}
+
+.dict-discourse__source:hover {
+  color: #b85c47;
+  text-decoration: underline;
+}
+
+/* 横向滚动外层：竖排内容本应向左生长，而左向溢出无法滚动
+   （scrollWidth 等于 clientWidth，超出部分永远滚不到），
+   因此让版框按内容撑开、向右生长，再由 JS 把滚动位定到最右端。 */
+.dict-discourse__scroll {
+  overflow-x: auto;
+}
+
+.dict-discourse__book {
+  writing-mode: vertical-rl;
+  height: 340px;
+  width: max-content;
+  min-width: 100%;
+  padding: 18px 20px;
+  background: #fbf5e9;
+  border: 1px solid rgba(150, 67, 40, 0.45);
+  /* 版框双线：内缩 4px 再描一道浅红，复刻刻本边框 */
+  box-shadow:
+    inset 0 0 0 4px #fbf5e9,
+    inset 0 0 0 5px rgba(150, 67, 40, 0.22);
+  color: #2f2620;
+  font-size: 17px;
+  line-height: 2.3;
+  letter-spacing: 0.12em;
+}
+
+/* 书名与作者：朱色题签列 */
+.dict-discourse__col--book {
+  font-size: 18px;
+  font-weight: 700;
+  color: #964328;
+}
+
+.dict-discourse__col--author {
+  font-size: 15px;
+  color: #964328;
+}
+
+/* 落款列：竖排下 text-align: end 即排到下方，字号压小、颜色压淡 */
+.dict-discourse__col--date {
+  font-size: 13px;
+  color: #8d8378;
+  text-align: end;
+}
+
+@media (max-width: 768px) {
+  .dict-discourse {
+    padding: 16px;
+  }
+
+  .dict-discourse__book {
+    height: 280px;
+    padding: 14px 16px;
+    font-size: 15px;
+  }
+}
+
+/* =========================================================
+   书法字典 · 汉字释义卡（参考「最近查询」词条卡）
+   暗底居中排版：大字字头 → 读音/部首/笔画 → 义项，
+   卡片整体最大高度固定，义项数量由组件侧截断，
+   仍超出时只在正文区滚动，不把卡片撑高。
+   ========================================================= */
+
+.dict-explain {
+  display: flex;
+  flex-direction: column;
+  max-height: 480px;
+  padding: 30px 28px 22px;
+  text-align: center;
+  color: #e8ddca;
+  background: radial-gradient(
+    120% 90% at 50% 0%,
+    #221c17 0%,
+    #17130f 60%,
+    #100d0b 100%
+  );
+  border: 1px solid rgba(216, 186, 134, 0.16);
+  border-radius: 14px;
+  box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.75);
+}
+
+/* 字头 */
+.dict-explain__char {
+  font-size: 76px;
+  line-height: 1.05;
+  font-weight: 700;
+  color: #fff8ed;
+  user-select: none;
+}
+
+/* 读音 / 部首 / 笔画：中点分隔的一行元信息 */
+.dict-explain__meta {
+  margin-top: 12px;
+  font-size: 14px;
+  color: rgba(232, 221, 202, 0.62);
+}
+
+.dict-explain__meta span + span::before {
+  content: "·";
+  margin: 0 10px;
+  color: rgba(216, 186, 134, 0.4);
+}
+
+/* 简繁字头不一致时的说明 */
+.dict-explain__variant {
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(216, 186, 134, 0.75);
+}
+
+/* 义项区：卡片高度固定，超出只在此区滚动 */
+.dict-explain__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(216, 186, 134, 0.14);
+}
+
+.dict-explain__group + .dict-explain__group {
+  margin-top: 16px;
+}
+
+.dict-explain__pron {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(216, 186, 134, 0.9);
+}
+
+.dict-explain__item {
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.9;
+  color: rgba(232, 221, 202, 0.82);
+}
+
+.dict-explain__type {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 7px;
+  font-size: 12px;
+  color: #e8ddca;
+  border: 1px solid rgba(216, 186, 134, 0.4);
+  border-radius: 4px;
+}
+
+/* 书证 / 例句：比正文更弱一档，居中收在义项下方 */
+.dict-explain__cite {
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: rgba(232, 221, 202, 0.45);
+}
+
+/* 被省略的义项提示 + 来源 */
+.dict-explain__more {
+  margin-top: 12px;
+  font-size: 12px;
+  color: rgba(232, 221, 202, 0.4);
+}
+
+.dict-explain__source {
+  flex-shrink: 0;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(216, 186, 134, 0.12);
+  font-size: 12px;
+  color: rgba(232, 221, 202, 0.4);
+}
+
+.dict-explain__link {
+  margin-left: 6px;
+  color: rgba(216, 186, 134, 0.85);
+}
+
+.dict-explain__link:hover {
+  color: #d8ba86;
+  text-decoration: underline;
+}
+
+/* 非正常状态（加载中 / 无释义 / 服务不可用）沿用暗卡外形 */
+.dict-explain--state {
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  max-height: none;
+  font-size: 13px;
+  color: rgba(232, 221, 202, 0.55);
+}
+
+@media (max-width: 640px) {
+  .dict-explain {
+    padding: 24px 18px 18px;
+    max-height: 420px;
+  }
+
+  .dict-explain__char {
+    font-size: 58px;
+  }
+}

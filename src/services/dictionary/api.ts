@@ -20,3 +20,23 @@ export async function getDictionaryCharacters(
     }
   );
 }
+
+/**
+ * 书法字典 · 页头旋转字环 / 推荐单字展示列表
+ *
+ * GET /api/web/dictionary/showcase?size=
+ *
+ * 热门碑帖优先去重后随机取样，图片同为 MinIO 临时访问地址，
+ * 失败时前端静默隐藏字环与推荐列表，不影响搜索主流程。
+ *
+ * @param size 请求数量（默认 18 = 内环 6 + 外环 12），上限 30
+ */
+export async function getDictionaryShowcase(size?: number) {
+  return request<API.Result<API.WebDictionaryCharacter[]>>(
+    "/api/web/dictionary/showcase",
+    {
+      method: "GET",
+      params: size ? { size } : undefined,
+    }
+  );
+}

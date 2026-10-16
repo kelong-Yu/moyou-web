@@ -185,14 +185,14 @@ export async function getPractiseInit(
  *
  * 与缩略图同样走后端接口而非 MinIO 预签名地址，
  * 不受临时地址有效期影响；
- * 返回值再拼 "/api" 前缀是为配合开发代理的 /api 重写，
- * 与临帖页现有 thumbnailUrl 用法一致。
+ * 返回的就是浏览器可直接使用的完整路径（含 /api 前缀），
+ * 与后端实际映射 /api/web/copybook/practise/** 一致。
  */
 export function getPractisePageFullImageUrl(
     copybookId: number,
     pageNumber: number
 ): string {
-    return `/api/api/web/copybook/practise/${copybookId}/page/${pageNumber}/full`;
+    return `/api/web/copybook/practise/${copybookId}/page/${pageNumber}/full`;
 }
 
 /**
@@ -323,4 +323,22 @@ export async function getCopybookInteraction (copybookId : number){
             method:"GET"
         }
     );
+}
+
+
+/**
+ * 热搜碑帖卡片列表
+ * GET /api/web/copybook/hot?limit=
+ *
+ * 按浏览量倒序返回碑帖卡片完整字段（与碑帖库瀑布流同构），
+ * 供书法字典「热搜碑帖」区一次性取回一批后前端轮换展示。
+ */
+export async function getHotCopybookCards(limit?: number) {
+  return request<API.Result<API.WebCopybookResponse[]>>(
+    "/api/web/copybook/hot",
+    {
+      method: "GET",
+      params: limit ? { limit } : undefined,
+    }
+  );
 }

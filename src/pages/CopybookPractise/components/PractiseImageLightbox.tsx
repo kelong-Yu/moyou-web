@@ -51,6 +51,14 @@ export interface PractiseLightboxProps {
     /** 当前内容加载失败提示，传入后隐藏内容 */
     error?: string | null;
 
+    /**
+     * 顶部工具条（渲染在标题区与关闭按钮之间）
+     *
+     * 供调用方放入本页专属操作，如书法字典的「隔空翻页」「收藏」；
+     * 不传则顶部条与原来完全一致。
+     */
+    toolbar?: ReactNode;
+
     /** 当前序号对应的内容（大图 <img> 或单字卡片），随缩放一起放大缩小 */
     children: ReactNode;
 }
@@ -85,6 +93,7 @@ const PractiseImageLightbox = ({
     label,
     loading = false,
     error = null,
+    toolbar,
     children,
 }: PractiseLightboxProps) => {
     /** 缩放倍数（1 = 适配窗口） */
@@ -344,14 +353,18 @@ const PractiseImageLightbox = ({
                     )}
                 </div>
 
-                <button
-                    type="button"
-                    onClick={onClose}
-                    title="关闭（Esc）"
-                    className={toolButtonClass}
-                >
-                    <CloseOutlined />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                    {toolbar}
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        title="关闭（Esc）"
+                        className={toolButtonClass}
+                    >
+                        <CloseOutlined />
+                    </button>
+                </div>
             </div>
 
             {/* ---------- 中部：内容 + 左右切换 ---------- */}
