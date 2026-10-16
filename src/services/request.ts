@@ -3,9 +3,10 @@ import axios from "axios";
 import type {AxiosRequestConfig} from "axios";
 
 // 创建axios实例
+// 不设 baseURL：各 service 里写的就是完整路径（/api/web/...），
+// 再加一层 /api 会变成 /api/api/...，只能靠 dev 代理 rewrite 兜底。
+// 与 moyou-manage 的 config/proxy.ts 保持同一约定：代理不重写路径。
 const axiosInstance = axios.create({
-
-    baseURL:"/api",
 
     timeout:5000
 
