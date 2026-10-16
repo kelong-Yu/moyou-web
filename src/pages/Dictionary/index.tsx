@@ -139,6 +139,9 @@ const withBookMarks = (value: string) =>
  * 字卡位于 rotate(i·step) translateY(R) 处，即 SVG 角度（顺时针、y 向下）
  * 90° + i·(360/N)；要让每段短弧落在相邻两卡正中，
  * 首段起点即 90° 再让开半个「间隙 - 段长」。
+ * 虚线周期必须等于相邻两卡的弧长间隔（gap）而不是整圈，
+ * 否则一整圈只画得出第一段弧；实线段占 gap 的一半，
+ * 剩余一半留给字卡位置，形成「卡间断弧」。
  * viewBox 固定 200×200、r=100，靠 CSS 缩放到真实半径。
  */
 const arcDash = (count: number) => {
@@ -148,7 +151,7 @@ const arcDash = (count: number) => {
     const start = (circumference * 90) / 360 + (gap - segment) / 2;
 
     return {
-        dasharray: `${segment} ${circumference - segment}`,
+        dasharray: `${segment} ${gap - segment}`,
         dashoffset: -start,
     };
 };
@@ -884,6 +887,10 @@ const Dictionary = () => {
         items: API.WebDictionaryCharacter[],
         ringClassName: string
     ) => {
+        // 少于两张卡就没有「相邻之间一段弧」可言，
+        // 整环连同弧轨一起不渲染，避免孤卡旁挂出一截悬空弧线
+        if (items.length < 2) return null;
+
         const dash = arcDash(items.length);
 
         return (
