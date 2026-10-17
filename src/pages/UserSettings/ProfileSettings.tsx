@@ -22,7 +22,7 @@ interface ProfileFormState {
  *
  * 布局结构：
  *   「个人资料」卡片（右上编辑按钮）
- *     ├─ 资料块：头像 + 昵称 / 邮箱 / 角色·状态 / 加入时间·IP 地址
+ *     ├─ 资料块：头像 + 昵称 / 邮箱 / 角色·状态 / 加入时间·IP 属地
  *     ├─ 可编辑区：昵称 / 手机号码 / 个人简介 / 性别（默认只读）
  *     └─ 安全设置：修改密码（占位）
  */
@@ -221,7 +221,8 @@ const ProfileSettings = () => {
                             </p>
 
                             <p className="text-xs text-gray-400">
-                                加入时间：{joinTimeText} · IP 地址：暂无记录
+                                加入时间：{joinTimeText} · IP 属地：
+                                {profile?.ipLocation || "暂无记录"}
                             </p>
                         </div>
                     </div>
