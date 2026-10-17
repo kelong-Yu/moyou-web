@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { App, Button, Empty } from "antd";
 import {
@@ -28,6 +28,7 @@ import MoyouLoading from "../../components/MoyouLoading";
 import UserAvatar from "../../components/UserAvatar";
 import { usePageMeta } from "../../hooks/usePageMeta";
 import CharacterFavoriteCard from "./components/CharacterFavoriteCard";
+import TabSearchBar from "./components/TabSearchBar";
 import bgImg from "../../assets/lantingxu.jpg";
 
 /** 一级导航 */
@@ -36,11 +37,46 @@ type MainTab = "favorites" | "following" | "fans";
 /** 收藏二级导航 */
 type FavSubTab = "copybook" | "character";
 
+/**
+ * 个人主页 Hero 使用的资料视图
+ *
+ * `signature`（个人简介）在 user_info 表与 UserInfoResponse（currentUser）中都有，
+ * 但公开资料接口 /api/web/user/{id}/profile 返回的是 UserProfileResponse，
+ * 该 DTO 目前尚未携带 signature。这里以可选字段声明，后端补字段后无需改前端即自动生效；
+ * 查看本人主页时回退到 Redux 里的 currentUser.signature，保证本人简介当前就能显示。
+ *
+ * 刻意不改 src/services/user/typings.d.ts，避免与并行任务冲突。
+ */
+type ProfileView = API.UserProfile & { signature?: string };
+
 const MAIN_TABS: { key: MainTab; label: string; icon: React.ReactNode }[] = [
     { key: "favorites", label: "收藏", icon: <HeartOutlined /> },
     { key: "following", label: "关注", icon: <UserOutlined /> },
     { key: "fans", label: "粉丝", icon: <TeamOutlined /> },
 ];
+
+/**
+ * 任一字段命中关键字即算匹配
+ *
+ * 关键字为空（未搜索）时全部通过，等价于不过滤。
+ * 仅用于当前 tab 已加载列表的原地过滤。
+ */
+const matchesKeyword = (
+    normalizedKeyword: string,
+    ...fields: (string | undefined)[]
+) => {
+    if (!normalizedKeyword) return true;
+    return fields.some((field) =>
+        (field || "").toLowerCase().includes(normalizedKeyword)
+    );
+};
+
+/** 搜索框占位文案：随一级导航（及收藏二级导航）变化 */
+const SEARCH_PLACEHOLDERS: Record<MainTab, string> = {
+    favorites: "搜索碑帖 / 单字名称",
+    following: "搜索关注名称",
+    fans: "搜索粉丝名称",
+};
 
 /**
  * 用户个人主页
@@ -70,7 +106,7 @@ const UserProfile = () => {
 
     // ==================== 数据状态 ====================
     /** 正在查看的用户资料（本人/他人共用公开资料接口） */
-    const [profile, setProfile] = useState<API.UserProfile>();
+    const [profile, setProfile] = useState<ProfileView>();
     const [profileLoading, setProfileLoading] = useState(true);
     const [profileError, setProfileError] = useState<string>();
 
@@ -103,6 +139,14 @@ const UserProfile = () => {
 
     /** 关注 / 取消关注请求进行中，防止重复提交 */
     const [followSubmitting, setFollowSubmitting] = useState(false);
+
+    /**
+     * 当前 tab 的搜索关键字
+     *
+     * 仅对已加载到前端的列表做原地过滤，不改变请求、不跳转路由；
+     * 切换一级导航时重置（见 TabSearchBar 的 resetKey）。
+     */
+    const [keyword, setKeyword] = useState("");
 
     // ==================== 派生数据 ====================
     /** 正在查看的目标用户：路由 ID 优先，否则为当前登录用户 */
@@ -333,10 +377,65 @@ const UserProfile = () => {
     /** 位置信息：当前后端暂无该字段 */
     const locationText = "未设置";
 
+    /**
+     * 个人简介
+     *
+     * 优先取公开资料接口返回的 signature；查看本人时该接口尚未返回此字段，
+     * 回退到 Redux 中 currentUser 的 signature。两者都为空时才由渲染层显示占位文案。
+     */
+    const signatureText = (
+        profile?.signature ?? (isSelf ? userInfo?.signature : undefined)
+    )?.trim();
+
     /** 加入时间：仅保留日期 */
     const joinTimeText = profile?.createTime
         ? String(profile.createTime).slice(0, 10)
         : "未设置";
+
+    // ==================== 当前 tab 的原地搜索过滤 ====================
+
+    /** 归一化关键字（小写比较，中文子串匹配） */
+    const normalizedKeyword = keyword.trim().toLowerCase();
+
+    /** 是否处于搜索状态（决定空列表文案） */
+    const isSearching = normalizedKeyword.length > 0;
+
+    /** 碑帖收藏：按碑帖名称过滤 */
+    const filteredFavorites = useMemo(
+        () =>
+            favorites.filter((item) => matchesKeyword(normalizedKeyword, item.name)),
+        [favorites, normalizedKeyword]
+    );
+
+    /** 单字收藏：按单字名称过滤，兼顾卡片上同排展示的碑帖名 */
+    const filteredCharacters = useMemo(
+        () =>
+            favCharacters.filter((item) =>
+                matchesKeyword(normalizedKeyword, item.characterText, item.copybookName)
+            ),
+        [favCharacters, normalizedKeyword]
+    );
+
+    /** 关注列表：按名称过滤（用户昵称 / 书法家姓名） */
+    const filteredFollowing = useMemo(
+        () =>
+            followingList.filter((item) =>
+                matchesKeyword(normalizedKeyword, item.name)
+            ),
+        [followingList, normalizedKeyword]
+    );
+
+    /** 粉丝列表：按昵称过滤，兼顾账号 */
+    const filteredFans = useMemo(
+        () =>
+            fansList.filter((user) =>
+                matchesKeyword(normalizedKeyword, user.username, user.userAccount)
+            ),
+        [fansList, normalizedKeyword]
+    );
+
+    /** 搜索无结果时的统一文案 */
+    const emptySearchDescription = "没有匹配的结果，换个关键词试试";
 
     // ==================== 交互处理 ====================
 
@@ -658,9 +757,9 @@ const UserProfile = () => {
                                 )}
                             </div>
 
-                            {/* 第二行：个人简介（数据库暂无该字段时显示占位） */}
+                            {/* 第二行：个人简介 */}
                             <p className="text-xs sm:text-sm text-gray-300/90 leading-relaxed line-clamp-2">
-                                暂无个人简介
+                                {signatureText || "暂无个人简介"}
                             </p>
 
                             {/* 第三行：基本信息（性别 | 位置 | 加入时间） */}
@@ -722,27 +821,39 @@ const UserProfile = () => {
 
             {/* ==================== 下方内容区 ==================== */}
             <main className="max-w-310 mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-                {/* 一级导航：收藏 / 关注 / 粉丝 */}
+                {/* 一级导航：收藏 / 关注 / 粉丝（同一行最右侧为搜索框） */}
                 <div className="border-b border-[#964328]/15 mb-5">
-                    <div className="flex items-center gap-8 sm:gap-10">
-                        {MAIN_TABS.map((tab) => (
-                            <button
-                                key={tab.key}
-                                type="button"
-                                onClick={() => setActiveTab(tab.key)}
-                                className={`relative flex items-center gap-2 py-4 text-base transition-colors cursor-pointer ${
-                                    activeTab === tab.key
-                                        ? "font-bold text-[#964328]"
-                                        : "text-[#756B61] hover:text-[#964328]"
-                                }`}
-                            >
-                                {tab.icon}
-                                <span>{tab.label}</span>
-                                {activeTab === tab.key && (
-                                    <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#964328]" />
-                                )}
-                            </button>
-                        ))}
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-8 sm:gap-10">
+                            {MAIN_TABS.map((tab) => (
+                                <button
+                                    key={tab.key}
+                                    type="button"
+                                    onClick={() => {
+                                        setActiveTab(tab.key);
+                                        // 换 tab 即换搜索范围，立即清空关键字
+                                        setKeyword("");
+                                    }}
+                                    className={`relative flex items-center gap-2 py-4 text-base transition-colors cursor-pointer ${
+                                        activeTab === tab.key
+                                            ? "font-bold text-[#964328]"
+                                            : "text-[#756B61] hover:text-[#964328]"
+                                    }`}
+                                >
+                                    {tab.icon}
+                                    <span>{tab.label}</span>
+                                    {activeTab === tab.key && (
+                                        <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#964328]" />
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+
+                        <TabSearchBar
+                            resetKey={activeTab}
+                            placeholder={SEARCH_PLACEHOLDERS[activeTab]}
+                            onKeywordChange={setKeyword}
+                        />
                     </div>
                 </div>
 
@@ -788,13 +899,19 @@ const UserProfile = () => {
                                     <div className="py-16 text-center">
                                         <Empty description="收藏列表加载失败，请稍后重试" />
                                     </div>
-                                ) : favorites.length === 0 ? (
+                                ) : filteredFavorites.length === 0 ? (
                                     <div className="py-16 text-center">
-                                        <Empty description="暂无收藏内容" />
+                                        <Empty
+                                            description={
+                                                isSearching
+                                                    ? emptySearchDescription
+                                                    : "暂无收藏内容"
+                                            }
+                                        />
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                                        {favorites.map((item) => (
+                                        {filteredFavorites.map((item) => (
                                             <div
                                                 key={item.id}
                                                 onClick={() =>
@@ -860,13 +977,19 @@ const UserProfile = () => {
                                     <div className="py-16 text-center">
                                         <Empty description="单字收藏加载失败，请稍后重试" />
                                     </div>
-                                ) : favCharacters.length === 0 ? (
+                                ) : filteredCharacters.length === 0 ? (
                                     <div className="py-16 text-center">
-                                        <Empty description="暂无收藏的单字" />
+                                        <Empty
+                                            description={
+                                                isSearching
+                                                    ? emptySearchDescription
+                                                    : "暂无收藏的单字"
+                                            }
+                                        />
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                                        {favCharacters.map((item) => (
+                                        {filteredCharacters.map((item) => (
                                             <CharacterFavoriteCard
                                                 key={item.characterId}
                                                 item={item}
@@ -888,13 +1011,19 @@ const UserProfile = () => {
                             <div className="py-16 text-center">
                                 <Empty description="关注列表加载失败，请稍后重试" />
                             </div>
-                        ) : followingList.length === 0 ? (
+                        ) : filteredFollowing.length === 0 ? (
                             <div className="py-16 text-center">
-                                <Empty description="暂无关注" />
+                                <Empty
+                                    description={
+                                        isSearching
+                                            ? emptySearchDescription
+                                            : "暂无关注"
+                                    }
+                                />
                             </div>
                         ) : (
                             <div className="px-2 mb-8">
-                                {followingList.map((item) => {
+                                {filteredFollowing.map((item) => {
                                     const navigatePath =
                                         item.type === "user"
                                             ? `/user/${item.targetId}`
@@ -960,13 +1089,19 @@ const UserProfile = () => {
                             <div className="py-16 text-center">
                                 <Empty description="粉丝列表加载失败，请稍后重试" />
                             </div>
-                        ) : fansList.length === 0 ? (
+                        ) : filteredFans.length === 0 ? (
                             <div className="py-16 text-center">
-                                <Empty description="暂无粉丝" />
+                                <Empty
+                                    description={
+                                        isSearching
+                                            ? emptySearchDescription
+                                            : "暂无粉丝"
+                                    }
+                                />
                             </div>
                         ) : (
                             <div className="px-2 mb-8">
-                                {fansList.map((user) => (
+                                {filteredFans.map((user) => (
                                     <div
                                         key={user.id}
                                         className="group flex items-center gap-3 py-4 border-b border-[#964328]/15 transition-colors hover:bg-black/5 sm:gap-4 px-2"
