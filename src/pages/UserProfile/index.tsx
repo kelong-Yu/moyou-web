@@ -17,8 +17,8 @@ import { setUserInfo } from "../../stores/slices/userSlice";
 import {
     currentUser,
     getUserProfile,
-    getUserFollowing,
-    getUserFollowers,
+    getUserFollowingPage,
+    getUserFollowersPage,
     followUser,
     unfollowUser,
 } from "../../services/user/api";
@@ -29,6 +29,8 @@ import UserAvatar from "../../components/UserAvatar";
 import { usePageMeta } from "../../hooks/usePageMeta";
 import CharacterFavoriteCard from "./components/CharacterFavoriteCard";
 import TabSearchBar from "./components/TabSearchBar";
+import FollowListPanel from "./components/FollowListPanel";
+import useFollowPagedList from "./hooks/useFollowPagedList";
 import bgImg from "../../assets/lantingxu.jpg";
 
 /** 一级导航 */
@@ -36,6 +38,14 @@ type MainTab = "favorites" | "following" | "fans";
 
 /** 收藏二级导航 */
 type FavSubTab = "copybook" | "character";
+
+/**
+ * 关注 / 粉丝分页每页条数。
+ *
+ * 后端默认 20、上限 50，这里取 7：列表是带头像的两行卡片，
+ * 一屏大约放 7 条，再多就要滚很久才能看到分页器。
+ */
+const FOLLOW_PAGE_SIZE = 7;
 
 /**
  * 个人主页 Hero 使用的资料视图
@@ -47,7 +57,10 @@ type FavSubTab = "copybook" | "character";
  *
  * 刻意不改 src/services/user/typings.d.ts，避免与并行任务冲突。
  */
-type ProfileView = API.UserProfile & { signature?: string };
+type ProfileView = API.UserProfile & {
+    signature?: string;
+    ipLocation?: string;
+};
 
 const MAIN_TABS: { key: MainTab; label: string; icon: React.ReactNode }[] = [
     { key: "favorites", label: "收藏", icon: <HeartOutlined /> },
@@ -59,7 +72,6 @@ const MAIN_TABS: { key: MainTab; label: string; icon: React.ReactNode }[] = [
  * 任一字段命中关键字即算匹配
  *
  * 关键字为空（未搜索）时全部通过，等价于不过滤。
- * 仅用于当前 tab 已加载列表的原地过滤。
  */
 const matchesKeyword = (
     normalizedKeyword: string,
@@ -77,6 +89,18 @@ const SEARCH_PLACEHOLDERS: Record<MainTab, string> = {
     following: "搜索关注名称",
     fans: "搜索粉丝名称",
 };
+
+/* =========================================================
+   搜索与分页的叠加语义（关注 / 粉丝）—— 重要取舍，勿随手改
+
+   1. 关注 / 粉丝的关键字**下发到后端**（分页接口的 keyword 参数），
+      过滤在 SQL 层完成，所以搜的是全部关注/粉丝，不只是当前页；
+      关键字变化时页码归 1，由 useFollowPagedList.search 负责。
+   2. 收藏 tab 的接口本身没有分页、数据全量在本地，
+      仍走前端过滤，不受上面这套影响。
+   3. 因此 total 现在是"命中总数"而非"全部总数"，
+      分页器与「共 N 条」文案都直接采用服务端返回值。
+   ========================================================= */
 
 /**
  * 用户个人主页
@@ -122,16 +146,23 @@ const UserProfile = () => {
     const [favCharactersLoading, setFavCharactersLoading] = useState(false);
     const [favCharactersError, setFavCharactersError] = useState(false);
 
-    /** 关注列表（合并：关注的用户 + 关注的书法家） */
-    const [followingList, setFollowingList] = useState<API.FollowingItem[]>(
-        []
-    );
-    const [followingLoading, setFollowingLoading] = useState(false);
-    const [followingError, setFollowingError] = useState(false);
+    /**
+     * 关注列表（合并：关注的用户 + 关注的书法家），服务端分页
+     * 粉丝列表，服务端分页
+     *
+     * 两个列表分页逻辑相同但 records 元素类型不同
+     * （FollowingItemResponse / UserProfileCardResponse），
+     * 因此各持一个实例，泛型参数把类型带到列表行渲染上。
+     */
+    const followingList = useFollowPagedList<API.FollowingItem>({
+        pageSize: FOLLOW_PAGE_SIZE,
+        fetchPage: getUserFollowingPage,
+    });
 
-    const [fansList, setFansList] = useState<API.UserProfileCard[]>([]);
-    const [fansLoading, setFansLoading] = useState(false);
-    const [fansError, setFansError] = useState(false);
+    const fansList = useFollowPagedList<API.UserProfileCard>({
+        pageSize: FOLLOW_PAGE_SIZE,
+        fetchPage: getUserFollowersPage,
+    });
 
     // ==================== 交互状态 ====================
     const [activeTab, setActiveTab] = useState<MainTab>("favorites");
@@ -143,10 +174,19 @@ const UserProfile = () => {
     /**
      * 当前 tab 的搜索关键字
      *
-     * 仅对已加载到前端的列表做原地过滤，不改变请求、不跳转路由；
+     * 关注 / 粉丝 tab：变化时下发给后端重查（服务端过滤，页码归 1）。
+     * 收藏 tab：只做本地过滤，因为该接口没有分页、数据全量在前端。
      * 切换一级导航时重置（见 TabSearchBar 的 resetKey）。
      */
     const [keyword, setKeyword] = useState("");
+
+    /**
+     * 搜索清空计数器
+     *
+     * 与 activeTab 拼成 TabSearchBar 的 resetKey：
+     * 递增即可让搜索框自身（持有输入值）一并清空，无需把它改成受控组件。
+     */
+    const [searchClearToken, setSearchClearToken] = useState(0);
 
     // ==================== 派生数据 ====================
     /** 正在查看的目标用户：路由 ID 优先，否则为当前登录用户 */
@@ -290,65 +330,18 @@ const UserProfile = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userInfo, isSelf, activeTab, favSubTab]);
 
-    // 加载关注列表
+    /**
+     * 进入关注 / 粉丝 tab 时拉取第一页
+     *
+     * 每次进入都重新请求：关注关系可能在别处变更（Hero 按钮、对方主页），
+     * 以服务端为准，不做"已加载就跳过"的缓存。
+     * 加载中由 FollowListPanel 显示占位，不会白屏。
+     */
     useEffect(() => {
         if (targetUserId == null) return;
-        if (activeTab !== "following") return;
 
-        let cancelled = false;
-        setFollowingLoading(true);
-        setFollowingError(false);
-
-        getUserFollowing(targetUserId)
-            .then((res: any) => {
-                if (cancelled) return;
-                if (res.code === 200) {
-                    setFollowingList(res.data || []);
-                } else {
-                    setFollowingError(true);
-                }
-            })
-            .catch(() => {
-                if (!cancelled) setFollowingError(true);
-            })
-            .finally(() => {
-                if (!cancelled) setFollowingLoading(false);
-            });
-
-        return () => {
-            cancelled = true;
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab, targetUserId]);
-
-    // 加载粉丝列表
-    useEffect(() => {
-        if (targetUserId == null) return;
-        if (activeTab !== "fans") return;
-
-        let cancelled = false;
-        setFansLoading(true);
-        setFansError(false);
-
-        getUserFollowers(targetUserId)
-            .then((res: any) => {
-                if (cancelled) return;
-                if (res.code === 200) {
-                    setFansList(res.data || []);
-                } else {
-                    setFansError(true);
-                }
-            })
-            .catch(() => {
-                if (!cancelled) setFansError(true);
-            })
-            .finally(() => {
-                if (!cancelled) setFansLoading(false);
-            });
-
-        return () => {
-            cancelled = true;
-        };
+        if (activeTab === "following") followingList.load(targetUserId, 1);
+        if (activeTab === "fans") fansList.load(targetUserId, 1);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, targetUserId]);
 
@@ -374,8 +367,13 @@ const UserProfile = () => {
             ? "女"
             : "未设置";
 
-    /** 位置信息：当前后端暂无该字段 */
-    const locationText = "未设置";
+    /**
+     * IP 属地（省级）
+     *
+     * 后端在登录时写入 user_info.ip_location，粒度只到省，不含城市。
+     * 内网或本机登录不会产生属地，此时保持占位。
+     */
+    const locationText = profile?.ipLocation?.trim() || "未设置";
 
     /**
      * 个人简介
@@ -392,7 +390,9 @@ const UserProfile = () => {
         ? String(profile.createTime).slice(0, 10)
         : "未设置";
 
-    // ==================== 当前 tab 的原地搜索过滤 ====================
+    // ==================== 当前 tab 的搜索 ====================
+    // 收藏：接口未分页，全量在本地 → 前端过滤
+    // 关注 / 粉丝：接口分页 → 关键字下发后端，服务端过滤，records 已是命中结果
 
     /** 归一化关键字（小写比较，中文子串匹配） */
     const normalizedKeyword = keyword.trim().toLowerCase();
@@ -416,26 +416,80 @@ const UserProfile = () => {
         [favCharacters, normalizedKeyword]
     );
 
-    /** 关注列表：按名称过滤（用户昵称 / 书法家姓名） */
-    const filteredFollowing = useMemo(
-        () =>
-            followingList.filter((item) =>
-                matchesKeyword(normalizedKeyword, item.name)
-            ),
-        [followingList, normalizedKeyword]
-    );
+    /** 关注列表：服务端已按 keyword 过滤，这里不再二次筛选 */
+    const visibleFollowing = followingList.records;
 
-    /** 粉丝列表：按昵称过滤，兼顾账号 */
-    const filteredFans = useMemo(
-        () =>
-            fansList.filter((user) =>
-                matchesKeyword(normalizedKeyword, user.username, user.userAccount)
-            ),
-        [fansList, normalizedKeyword]
-    );
+    /** 粉丝列表：同上 */
+    const visibleFans = fansList.records;
 
-    /** 搜索无结果时的统一文案 */
+    /** 搜索无结果时的统一文案（收藏：全量列表内没找到） */
     const emptySearchDescription = "没有匹配的结果，换个关键词试试";
+
+    /**
+     * 分页列表搜索无结果
+     *
+     * 关键字已下发后端，所以"没找到"就是全部关注/粉丝里都没有，
+     * 措辞不能再暗示范围受限。
+     */
+    const followSearchEmptyDescription = (label: string) =>
+        `没有找到名称包含「${keyword.trim()}」的${label}，换个关键词试试，或清除搜索查看全部。`;
+
+    const followingSearchEmptyDescription = followSearchEmptyDescription("关注");
+
+    const fansSearchEmptyDescription = followSearchEmptyDescription("粉丝");
+
+    /**
+     * 关键字变化
+     *
+     * TabSearchBar 内部已做防抖，这里直接下发即可。
+     * 收藏 tab 的数据全量在本地，无需请求。
+     */
+    const handleKeywordChange = (next: string) => {
+        setKeyword(next);
+
+        if (activeTab === "following") {
+            followingList.search(next);
+        } else if (activeTab === "fans") {
+            fansList.search(next);
+        }
+    };
+
+    /**
+     * 清除搜索
+     *
+     * TabSearchBar 自持输入值，仅靠 resetKey 变化才会清空，
+     * 因此这里同时递增 token 并把 resetKey 设为 "tab:token"，
+     * 让输入框与父组件关键字一起归零。
+     * 两个分页列表的服务端关键字都要清，否则切回该 tab 时
+     * 界面显示空输入框、请求却仍带着旧 keyword。
+     */
+    const clearKeyword = () => {
+        setKeyword("");
+        setSearchClearToken((token) => token + 1);
+        followingList.search("");
+        fansList.search("");
+    };
+
+    /**
+     * 切换一级导航
+     *
+     * 换 tab 即换搜索范围：输入框、父组件 keyword、两个列表的服务端
+     * keywordRef 都要归零。只清前两者的话，切走再切回来会拿上一次
+     * 的关键字去请求一个显示为空搜索框的列表。
+     *
+     * 用事件回调而不是 effect 处理，是为了让清空发生在
+     * "进入 tab 自动加载"那个 effect 之前，避免两次请求抢同一份状态。
+     */
+    const switchMainTab = (tab: MainTab) => {
+        if (tab !== activeTab) {
+            setKeyword("");
+            setSearchClearToken((token) => token + 1);
+            followingList.search("");
+            fansList.search("");
+        }
+
+        setActiveTab(tab);
+    };
 
     // ==================== 交互处理 ====================
 
@@ -472,8 +526,8 @@ const UserProfile = () => {
             if (res.code === 200) {
                 // 服务端成功后才更新状态
                 await loadProfile(targetUserId);
-                if (activeTab === "following") loadFollowing();
-                if (activeTab === "fans") loadFans();
+                if (activeTab === "following") followingList.refresh();
+                if (activeTab === "fans") fansList.refresh();
             } else if (res.code === 4001) {
                 requireLogin();
             } else {
@@ -484,34 +538,6 @@ const UserProfile = () => {
         } finally {
             setFollowSubmitting(false);
         }
-    };
-
-    /** 刷新关注列表（用于列表内关注操作后同步 followed 状态） */
-    const loadFollowing = () => {
-        if (targetUserId == null) return;
-        setFollowingLoading(true);
-        setFollowingError(false);
-
-        getUserFollowing(targetUserId)
-            .then((res: any) => {
-                if (res.code === 200) setFollowingList(res.data || []);
-            })
-            .catch(() => setFollowingError(true))
-            .finally(() => setFollowingLoading(false));
-    };
-
-    /** 刷新粉丝列表 */
-    const loadFans = () => {
-        if (targetUserId == null) return;
-        setFansLoading(true);
-        setFansError(false);
-
-        getUserFollowers(targetUserId)
-            .then((res: any) => {
-                if (res.code === 200) setFansList(res.data || []);
-            })
-            .catch(() => setFansError(true))
-            .finally(() => setFansLoading(false));
     };
 
     /**
@@ -543,7 +569,8 @@ const UserProfile = () => {
 
                 // 该处理函数仅服务粉丝列表（UserProfileCard）；
                 // 关注列表已合并为 FollowingItem，取消走 handleUnfollowFollowing
-                setFansList(flip);
+                // 回关不改变列表成员，就地翻转即可，不必重新请求当前页
+                fansList.patchRecords(flip);
 
                 // 关注数以数据库为准，重新拉取资料统计
                 if (targetUserId != null) loadProfile(targetUserId);
@@ -563,7 +590,11 @@ const UserProfile = () => {
      * 关注列表行内取消关注
      *
      * 按条目类型调用对应取关接口（用户 / 书法家），
-     * 成功后移除该行并刷新资料统计（关注数以数据库为准）。
+     * 成功后重查当前页并重拉资料统计。
+     *
+     * 分页下不再本地删行：取关后该页应由后端的下一页补位，
+     * 本地过滤会让总条数与页内容同时失真。refresh 不清列表，
+     * 因此不会出现"整块闪成 loading"的观感。
      */
     const handleUnfollowFollowing = async (item: API.FollowingItem) => {
         if (!userInfo) {
@@ -581,15 +612,7 @@ const UserProfile = () => {
                     : await unfollowCalligrapher(item.targetId);
 
             if (res.code === 200) {
-                setFollowingList((prev) =>
-                    prev.filter(
-                        (row) =>
-                            !(
-                                row.type === item.type &&
-                                row.targetId === item.targetId
-                            )
-                    )
-                );
+                followingList.refresh();
 
                 // 关注数以数据库为准，重新拉取资料统计
                 if (targetUserId != null) loadProfile(targetUserId);
@@ -794,7 +817,7 @@ const UserProfile = () => {
 
                                 <button
                                     type="button"
-                                    onClick={() => setActiveTab("following")}
+                                    onClick={() => switchMainTab("following")}
                                     className="flex items-baseline gap-1 bg-transparent border-0 p-0 cursor-pointer hover:text-amber-300 transition-colors"
                                 >
                                     <span className="text-gray-400">关注</span>
@@ -805,7 +828,7 @@ const UserProfile = () => {
 
                                 <button
                                     type="button"
-                                    onClick={() => setActiveTab("fans")}
+                                    onClick={() => switchMainTab("fans")}
                                     className="flex items-baseline gap-1 bg-transparent border-0 p-0 cursor-pointer hover:text-amber-300 transition-colors"
                                 >
                                     <span className="text-gray-400">粉丝</span>
@@ -829,11 +852,7 @@ const UserProfile = () => {
                                 <button
                                     key={tab.key}
                                     type="button"
-                                    onClick={() => {
-                                        setActiveTab(tab.key);
-                                        // 换 tab 即换搜索范围，立即清空关键字
-                                        setKeyword("");
-                                    }}
+                                    onClick={() => switchMainTab(tab.key)}
                                     className={`relative flex items-center gap-2 py-4 text-base transition-colors cursor-pointer ${
                                         activeTab === tab.key
                                             ? "font-bold text-[#964328]"
@@ -850,9 +869,9 @@ const UserProfile = () => {
                         </div>
 
                         <TabSearchBar
-                            resetKey={activeTab}
+                            resetKey={`${activeTab}:${searchClearToken}`}
                             placeholder={SEARCH_PLACEHOLDERS[activeTab]}
-                            onKeywordChange={setKeyword}
+                            onKeywordChange={handleKeywordChange}
                         />
                     </div>
                 </div>
@@ -1001,168 +1020,166 @@ const UserProfile = () => {
                         </>
                     )}
 
-                    {/* ---------- 关注列表（合并：关注的用户 + 关注的书法家） ---------- */}
-                    {activeTab === "following" &&
-                        (followingLoading ? (
-                            <div className="h-64">
-                                <MoyouLoading tip="正在加载关注列表……" />
-                            </div>
-                        ) : followingError ? (
-                            <div className="py-16 text-center">
-                                <Empty description="关注列表加载失败，请稍后重试" />
-                            </div>
-                        ) : filteredFollowing.length === 0 ? (
-                            <div className="py-16 text-center">
-                                <Empty
-                                    description={
-                                        isSearching
-                                            ? emptySearchDescription
-                                            : "暂无关注"
-                                    }
-                                />
-                            </div>
-                        ) : (
-                            <div className="px-2 mb-8">
-                                {filteredFollowing.map((item) => {
-                                    const navigatePath =
-                                        item.type === "user"
-                                            ? `/user/${item.targetId}`
-                                            : `/aritcleWorks/${item.targetId}`;
+                    {/* ---------- 关注列表（合并：关注的用户 + 关注的书法家，服务端分页） ---------- */}
+                    {activeTab === "following" && (
+                        <FollowListPanel
+                            loading={followingList.loading}
+                            error={followingList.error}
+                            degraded={followingList.degraded}
+                            total={followingList.total}
+                            pageNum={followingList.pageNum}
+                            pageSize={followingList.pageSize}
+                            searching={isSearching}
+                            visibleCount={visibleFollowing.length}
+                            loadingTip="正在加载关注列表……"
+                            emptyDescription="暂无关注"
+                            searchEmptyDescription={followingSearchEmptyDescription}
+                            onPageChange={(page) =>
+                                targetUserId != null &&
+                                followingList.load(targetUserId, page)
+                            }
+                            onRetry={followingList.retry}
+                            onClearSearch={clearKeyword}
+                        >
+                            {visibleFollowing.map((item) => {
+                                const navigatePath =
+                                    item.type === "user"
+                                        ? `/user/${item.targetId}`
+                                        : `/aritcleWorks/${item.targetId}`;
 
-                                    return (
-                                        <div
-                                            key={`${item.type}-${item.targetId}`}
-                                            className="group flex items-center gap-3 py-4 border-b border-[#964328]/15 transition-colors hover:bg-black/5 sm:gap-4 px-2"
-                                        >
-                                            <UserAvatar
-                                                size={48}
-                                                src={item.avatarUrl}
-                                                name={item.name}
-                                                className="shrink-0 font-semibold cursor-pointer"
-                                                onClick={() => navigate(navigatePath)}
-                                            />
-
-                                            <div
-                                                className="min-w-0 flex-1 cursor-pointer"
-                                                onClick={() => navigate(navigatePath)}
-                                            >
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <h3 className="truncate text-sm font-bold text-[#3F332A] transition-colors group-hover:text-[#964328]">
-                                                        {item.name || "墨友"}
-                                                    </h3>
-                                                    {item.type === "user" ? (
-                                                        renderMiniRoleTag(item.role)
-                                                    ) : (
-                                                        <span className="rounded border border-[#C7A16A]/30 bg-[#F8F0E2] px-1.5 py-0.5 text-[10px] text-[#9A7440]">
-                                                            书法家
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <p className="mt-1 truncate text-xs leading-relaxed text-[#8B8178] sm:text-sm">
-                                                    {item.type === "user"
-                                                        ? `@${item.subtitle || "未知账号"}`
-                                                        : item.subtitle || ""}
-                                                </p>
-                                            </div>
-
-                                            <button
-                                                type="button"
-                                                disabled={followSubmitting}
-                                                onClick={() => handleUnfollowFollowing(item)}
-                                                className="shrink-0 rounded-full border-[#964328]/20 bg-[#F4E8DA] px-3 py-1.5 text-xs text-[#8C6049] transition-all hover:bg-[#EBDAC6] sm:px-4 sm:text-sm cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed border-0"
-                                            >
-                                                已关注
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ))}
-
-                    {/* ---------- 粉丝列表 ---------- */}
-                    {activeTab === "fans" &&
-                        (fansLoading ? (
-                            <div className="h-64">
-                                <MoyouLoading tip="正在加载粉丝列表……" />
-                            </div>
-                        ) : fansError ? (
-                            <div className="py-16 text-center">
-                                <Empty description="粉丝列表加载失败，请稍后重试" />
-                            </div>
-                        ) : filteredFans.length === 0 ? (
-                            <div className="py-16 text-center">
-                                <Empty
-                                    description={
-                                        isSearching
-                                            ? emptySearchDescription
-                                            : "暂无粉丝"
-                                    }
-                                />
-                            </div>
-                        ) : (
-                            <div className="px-2 mb-8">
-                                {filteredFans.map((user) => (
+                                return (
                                     <div
-                                        key={user.id}
+                                        key={`${item.type}-${item.targetId}`}
                                         className="group flex items-center gap-3 py-4 border-b border-[#964328]/15 transition-colors hover:bg-black/5 sm:gap-4 px-2"
                                     >
                                         <UserAvatar
                                             size={48}
-                                            src={user.avatarUrl}
-                                            account={user.userAccount}
-                                            name={user.username}
+                                            src={item.avatarUrl}
+                                            name={item.name}
                                             className="shrink-0 font-semibold cursor-pointer"
-                                            onClick={() => navigate(`/user/${user.id}`)}
+                                            onClick={() => navigate(navigatePath)}
                                         />
 
                                         <div
                                             className="min-w-0 flex-1 cursor-pointer"
-                                            onClick={() => navigate(`/user/${user.id}`)}
+                                            onClick={() => navigate(navigatePath)}
                                         >
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <h3 className="truncate text-sm font-bold text-[#3F332A] transition-colors group-hover:text-[#964328]">
-                                                    {user.username ||
-                                                        user.userAccount ||
-                                                        "墨友"}
+                                                    {item.name || "墨友"}
                                                 </h3>
-                                                {renderMiniRoleTag(user.role)}
+                                                {item.type === "user" ? (
+                                                    renderMiniRoleTag(item.role)
+                                                ) : (
+                                                    <span className="rounded border border-[#C7A16A]/30 bg-[#F8F0E2] px-1.5 py-0.5 text-[10px] text-[#9A7440]">
+                                                        书法家
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="mt-1 truncate text-xs leading-relaxed text-[#8B8178] sm:text-sm">
-                                                @{user.userAccount || "未知账号"}
+                                                {item.type === "user"
+                                                    ? `@${item.subtitle || "未知账号"}`
+                                                    : item.subtitle || ""}
                                             </p>
                                         </div>
 
-                                        {/* 粉丝行操作：自己所在行不显示按钮；
-                                            本人粉丝列表未回关显示"回关"，他人粉丝列表显示"关注" */}
-                                        {!(userInfo && user.id === userInfo.id) && (
-                                            user.followed ? (
-                                                <button
-                                                    type="button"
-                                                    disabled={followSubmitting}
-                                                    onClick={() =>
-                                                        handleListFollowToggle(user)
-                                                    }
-                                                    className="shrink-0 rounded-full border-[#964328]/20 bg-[#F4E8DA] px-3 py-1.5 text-xs text-[#8C6049] transition-all hover:bg-[#EBDAC6] sm:px-4 sm:text-sm cursor-pointer disabled:opacity-60 border-0"
-                                                >
-                                                    已关注
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    type="button"
-                                                    disabled={followSubmitting}
-                                                    onClick={() =>
-                                                        handleListFollowToggle(user)
-                                                    }
-                                                    className="shrink-0 rounded-full border border-[#964328] bg-[#964328] px-3 py-1.5 text-xs text-[#FFF8ED] transition-all hover:bg-[#7e3720] sm:px-4 sm:text-sm cursor-pointer disabled:opacity-60"
-                                                >
-                                                    {isSelf ? "回关" : "关注"}
-                                                </button>
-                                            )
-                                        )}
+                                        <button
+                                            type="button"
+                                            disabled={followSubmitting}
+                                            onClick={() => handleUnfollowFollowing(item)}
+                                            className="shrink-0 rounded-full border-[#964328]/20 bg-[#F4E8DA] px-3 py-1.5 text-xs text-[#8C6049] transition-all hover:bg-[#EBDAC6] sm:px-4 sm:text-sm cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed border-0"
+                                        >
+                                            已关注
+                                        </button>
                                     </div>
-                                ))}
-                            </div>
-                        ))}
+                                );
+                            })}
+                        </FollowListPanel>
+                    )}
+
+                    {/* ---------- 粉丝列表（服务端分页） ---------- */}
+                    {activeTab === "fans" && (
+                        <FollowListPanel
+                            loading={fansList.loading}
+                            error={fansList.error}
+                            degraded={fansList.degraded}
+                            total={fansList.total}
+                            pageNum={fansList.pageNum}
+                            pageSize={fansList.pageSize}
+                            searching={isSearching}
+                            visibleCount={visibleFans.length}
+                            loadingTip="正在加载粉丝列表……"
+                            emptyDescription="暂无粉丝"
+                            searchEmptyDescription={fansSearchEmptyDescription}
+                            onPageChange={(page) =>
+                                targetUserId != null &&
+                                fansList.load(targetUserId, page)
+                            }
+                            onRetry={fansList.retry}
+                            onClearSearch={clearKeyword}
+                        >
+                            {visibleFans.map((user) => (
+                                <div
+                                    key={user.id}
+                                    className="group flex items-center gap-3 py-4 border-b border-[#964328]/15 transition-colors hover:bg-black/5 sm:gap-4 px-2"
+                                >
+                                    <UserAvatar
+                                        size={48}
+                                        src={user.avatarUrl}
+                                        account={user.userAccount}
+                                        name={user.username}
+                                        className="shrink-0 font-semibold cursor-pointer"
+                                        onClick={() => navigate(`/user/${user.id}`)}
+                                    />
+
+                                    <div
+                                        className="min-w-0 flex-1 cursor-pointer"
+                                        onClick={() => navigate(`/user/${user.id}`)}
+                                    >
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h3 className="truncate text-sm font-bold text-[#3F332A] transition-colors group-hover:text-[#964328]">
+                                                {user.username ||
+                                                    user.userAccount ||
+                                                    "墨友"}
+                                            </h3>
+                                            {renderMiniRoleTag(user.role)}
+                                        </div>
+                                        <p className="mt-1 truncate text-xs leading-relaxed text-[#8B8178] sm:text-sm">
+                                            @{user.userAccount || "未知账号"}
+                                        </p>
+                                    </div>
+
+                                    {/* 粉丝行操作：自己所在行不显示按钮；
+                                        本人粉丝列表未回关显示"回关"，他人粉丝列表显示"关注" */}
+                                    {!(userInfo && user.id === userInfo.id) && (
+                                        user.followed ? (
+                                            <button
+                                                type="button"
+                                                disabled={followSubmitting}
+                                                onClick={() =>
+                                                    handleListFollowToggle(user)
+                                                }
+                                                className="shrink-0 rounded-full border-[#964328]/20 bg-[#F4E8DA] px-3 py-1.5 text-xs text-[#8C6049] transition-all hover:bg-[#EBDAC6] sm:px-4 sm:text-sm cursor-pointer disabled:opacity-60 border-0"
+                                            >
+                                                已关注
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                disabled={followSubmitting}
+                                                onClick={() =>
+                                                    handleListFollowToggle(user)
+                                                }
+                                                className="shrink-0 rounded-full border border-[#964328] bg-[#964328] px-3 py-1.5 text-xs text-[#FFF8ED] transition-all hover:bg-[#7e3720] sm:px-4 sm:text-sm cursor-pointer disabled:opacity-60"
+                                            >
+                                                {isSelf ? "回关" : "关注"}
+                                            </button>
+                                        )
+                                    )}
+                                </div>
+                            ))}
+                        </FollowListPanel>
+                    )}
                 </div>
             </main>
         </div>

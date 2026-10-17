@@ -27,6 +27,8 @@ declare namespace API {
     phone?: string;
     /** 个人简介（编辑资料使用，数据库已新增该字段） */
     signature?: string;
+    /** IP 属地（省级），由登录来源自动记录，不可编辑 */
+    ipLocation?: string;
   };
 
   /**
@@ -110,6 +112,72 @@ declare namespace API {
     role?: number;
     subtitle?: string;
     createTime?: string;
+  };
+
+  /**
+   * 关注 / 粉丝列表分页入参
+   *
+   * GET /api/web/user/{id}/following?pageNum=1&pageSize=20
+   * GET /api/web/user/{id}/followers?pageNum=1&pageSize=20
+   */
+  type WebUserFollowPageParams = {
+    pageNum?: number;
+
+    pageSize?: number;
+
+    /** 名称/账号/头衔关键词，走服务端 LIKE，覆盖全部条目而非当前页 */
+    keyword?: string;
+  };
+
+  /**
+   * 关注列表分页响应
+   *
+   * 形状与 WebDictionaryCharacterPageResponse 同构，
+   * records 元素为后端 FollowingItemResponse（即上面的 FollowingItem）。
+   */
+  type WebUserFollowingPageResponse = {
+    records: FollowingItem[];
+
+    total: number;
+
+    current: number;
+
+    size: number;
+  };
+
+  /**
+   * 粉丝列表分页响应
+   *
+   * 形状与 WebDictionaryCharacterPageResponse 同构，
+   * records 元素为后端 UserProfileCardResponse（即上面的 UserProfileCard）。
+   */
+  type WebUserFollowersPageResponse = {
+    records: UserProfileCard[];
+
+    total: number;
+
+    current: number;
+
+    size: number;
+  };
+
+  /**
+   * 前端规范化后的分页结果
+   *
+   * 后端分页尚未上线时接口仍返回裸 List，此时按前端切片补齐分页语义，
+   * degraded = true 用于向用户明示"当前为降级展示"。
+   */
+  type NormalizedFollowPage<T> = {
+    records: T[];
+
+    total: number;
+
+    current: number;
+
+    size: number;
+
+    /** true = 后端未返回分页体，分页由前端按整表切片临时实现 */
+    degraded: boolean;
   };
 
   /**

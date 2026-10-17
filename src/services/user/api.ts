@@ -139,24 +139,102 @@ export async function getUserProfile(userId: number) {
   );
 }
 
-/** 用户的关注列表 GET /api/web/user/{id}/following（游客可访问，含用户与书法家两类） */
-export async function getUserFollowing(userId: number) {
-  return request<API.Result<API.FollowingItem[]>>(
-    `/api/web/user/${userId}/following`,
-    {
-      method: 'GET',
-    }
-  );
+/**
+ * 用户的关注列表（分页）GET /api/web/user/{id}/following?pageNum&pageSize
+ *
+ * 游客可访问；条目 type 区分用户 / 书法家，分别跳转 /user/{id} 与 /aritcleWorks/{id}。
+ * records 元素为后端 FollowingItemResponse。
+ *
+ * 返回类型保留了裸数组分支：后端分页改造上线前该接口仍返回 List，
+ * 由 normalizeFollowPage 统一收敛为分页体并标记降级。
+ */
+export async function getUserFollowingPage(
+  userId: number,
+  params: API.WebUserFollowPageParams = {}
+) {
+  return request<
+    API.Result<API.WebUserFollowingPageResponse | API.FollowingItem[]>
+  >(`/api/web/user/${userId}/following`, {
+    method: 'GET',
+    params,
+  });
 }
 
-/** 用户的粉丝列表 GET /api/web/user/{id}/followers（游客可访问） */
-export async function getUserFollowers(userId: number) {
-  return request<API.Result<API.UserProfileCard[]>>(
-    `/api/web/user/${userId}/followers`,
-    {
-      method: 'GET',
-    }
-  );
+/**
+ * 用户的粉丝列表（分页）GET /api/web/user/{id}/followers?pageNum&pageSize
+ *
+ * 游客可访问；followed 表示当前登录用户是否已回关列表中的用户。
+ * records 元素为后端 UserProfileCardResponse。
+ */
+export async function getUserFollowersPage(
+  userId: number,
+  params: API.WebUserFollowPageParams = {}
+) {
+  return request<
+    API.Result<API.WebUserFollowersPageResponse | API.UserProfileCard[]>
+  >(`/api/web/user/${userId}/followers`, {
+    method: 'GET',
+    params,
+  });
+}
+
+/**
+ * 分页返回体规范化
+ *
+ * 兼容三种情况，避免后端未就绪时页面直接崩掉：
+ * 1. 标准分页体 { records, total, current, size } → 原样采纳，缺失字段回退到请求值；
+ * 2. 裸数组（后端分页改造前的形状）→ 前端按 pageNum/pageSize 切片，degraded 置 true；
+ * 3. 其他任意形状 → 返回 null，由调用方按"加载失败"处理并提示。
+ *
+ * 只做形状收敛，不改任何业务字段。
+ */
+export function normalizeFollowPage<T>(
+  data: unknown,
+  requested: { pageNum: number; pageSize: number }
+): API.NormalizedFollowPage<T> | null {
+  const { pageNum, pageSize } = requested;
+
+  if (Array.isArray(data)) {
+    const all = data as T[];
+    const start = (pageNum - 1) * pageSize;
+    return {
+      records: all.slice(start, start + pageSize),
+      total: all.length,
+      current: pageNum,
+      size: pageSize,
+      degraded: true,
+    };
+  }
+
+  if (data && typeof data === "object") {
+    const raw = data as {
+      records?: unknown;
+      total?: unknown;
+      current?: unknown;
+      size?: unknown;
+    };
+    if (!Array.isArray(raw.records)) return null;
+
+    const records = raw.records as T[];
+    return {
+      records,
+      total:
+        typeof raw.total === "number" && Number.isFinite(raw.total)
+          ? raw.total
+          : records.length,
+      current:
+        typeof raw.current === "number" && Number.isFinite(raw.current)
+          ? raw.current
+          : pageNum,
+      size:
+        typeof raw.size === "number" && Number.isFinite(raw.size) && raw.size > 0
+          ? raw.size
+          : pageSize,
+      degraded: false,
+    };
+  }
+
+  return null;
 }
 
 /** 关注用户 POST /api/web/user/{id}/follow（需要登录） */
